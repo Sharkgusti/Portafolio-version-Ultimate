@@ -1101,48 +1101,37 @@ function procesarFlujosSemestrales(hoja) {
     return { labels, datasets };
 }
 
+// =================================================================================
+// PASO 3.1 de la consolidación (ver debate "Portafolio Ultimate"): esta función
+// ya NO reimplementa el loop de posiciones. Delega en snapshotAFecha(), de
+// MotorPosiciones.gs, que aplica las mismas reglas que el resto del motor
+// (Método B de amortización, tope de venta a cantidad tenida, venta sin stock
+// previo = ganancia total). Antes de este paso, esta función tenía su propia
+// versión simplificada de esas reglas, SIN el tope de venta ni la regla de
+// venta-sin-stock — validado en paralelo contra el sistema viejo el 06/09/2026
+// (VALIDACION_MOTOR_TEMP): coincide en todos los tickers salvo BRKB y HMY,
+// que difieren a propósito por esas dos reglas defensivas.
+//
+// actualizarUniversoTickers() (más abajo) y Bombonera.gs siguen recibiendo
+// exactamente el mismo formato de salida { ticker: {q, costo, tipo} } que
+// siempre — no requirieron ningún cambio.
+// =================================================================================
 function calcularCantidadesNetas() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const logData = ss.getSheetByName(HOJAS.LOG).getDataRange().getValues();
     const logSinHeader = logData.slice(1);
     logSinHeader.sort((a, b) => new Date(a[1]) - new Date(b[1]));
 
+    const resultado = snapshotAFecha(logSinHeader, HOY_SIMULADA);
+
     let cantidades = {};
+    Object.keys(resultado.posiciones).forEach(tk => {
+        const p = resultado.posiciones[tk];
+        cantidades[tk] = { q: p.q, costo: p.costo, tipo: p.tipo };
+    });
 
-    for (let i = 0; i < logSinHeader.length; i++) {
-        const row = logSinHeader[i];
-        const ticker = String(row[3]).toUpperCase().trim();
-        const tipoStr = String(row[4]);
-        const mov = String(row[5]).toLowerCase().trim();
-        const cant = cleanNum(row[6]);
-        const montoUSD = Math.abs(cleanNum(row[10]));
-        const ratioSplit = cleanNum(row[11]);
-
-        if (!ticker) continue;
-        if (ticker === 'USD' || ticker === 'CASH') continue;
-
-        if (!cantidades[ticker]) cantidades[ticker] = { q: 0, costo: 0, tipo: tipoStr };
-
-        if (mov.includes('compra') || mov.includes('aporte') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
-            cantidades[ticker].q += cant;
-            cantidades[ticker].costo += montoUSD;
-        } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-            if (cantidades[ticker].q > 0) {
-                let ppc = cantidades[ticker].costo / cantidades[ticker].q;
-                let costoVenta = ppc * cant;
-                cantidades[ticker].q -= cant;
-                cantidades[ticker].costo -= costoVenta;
-                if (cantidades[ticker].q < 0.0001) { cantidades[ticker].q = 0; cantidades[ticker].costo = 0; }
-            }
-        } else if (mov.includes('amortiza')) {
-            let reduccion = Math.min(montoUSD, cantidades[ticker].costo);
-            cantidades[ticker].costo -= reduccion;
-        } else if (mov.includes('split')) {
-            if (ratioSplit > 0 && cantidades[ticker].q > 0) {
-                cantidades[ticker].q *= ratioSplit;
-            }
-        }
-        cantidades[ticker].tipo = tipoStr;
+    if (resultado.advertencias.length > 0) {
+        resultado.advertencias.forEach(a => console.warn('[calcularCantidadesNetas] ' + a.mensaje));
     }
 
     return cantidades;
