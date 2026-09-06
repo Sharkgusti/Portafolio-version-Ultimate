@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+      :root { 
+        --dark-navy: #0a192f; 
+        --navy: #112240; 
+        --light-navy: #233554; 
+        --slate: #8892b0; 
+        --light-slate: #a8b2d1; 
+        --lightest-slate: #ccd6f6; 
+        --white: #ffffff; 
+        --gold: #FFC300; 
+        --blue-boca: #104F9F;
+        --positive: #00ff41; 
+        --negative: #ff4d4d; 
+      }
+      
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      
+      body { 
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; 
+        background-color: var(--dark-navy); 
+        color: var(--slate); 
+        padding: 2rem; 
+      }
+      
+      .container { max-width: 98%; margin: auto; }
+      
+      .header-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2rem;
+        gap: 1.5rem;
+      }
+      
+      .header-title-row {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1.5rem;
+      }
+      
+      .header-icon-img { 
+        height: 60px; 
+        width: auto; 
+        filter: drop-shadow(0 0 5px rgba(255, 195, 0, 0.3)); 
+      }
+      
+      h1 { 
+        color: var(--lightest-slate); 
+        font-size: 2.5rem; 
+        font-weight: 800; 
+        letter-spacing: -1px; 
+      }
+      
+      h1 .oro { color: var(--lightest-slate); }
+      
+      .macro-dashboard {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3rem;
+        justify-content: space-evenly;
+        background-color: var(--navy);
+        padding: 15px 40px;
+        border-radius: 50px;
+        border: 1px solid var(--light-navy);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        width: 100%;
+        max-width: 900px;
+      }
+      
+      .macro-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 80px;
+      }
+      
+      .macro-label { 
+        font-size: 0.8rem; 
+        color: var(--slate); 
+        text-transform: uppercase; 
+        letter-spacing: 1px; 
+        margin-bottom: 5px; 
+        font-weight: 600; 
+      }
+      
+      .macro-value { 
+        font-size: 1.5rem; 
+        color: var(--white); 
+        font-weight: 800; 
+        font-family: 'Courier New', monospace; 
+      }
+      
+      .macro-value.risk-up { 
+        color: var(--negative); 
+        text-shadow: 0 0 10px rgba(255, 77, 77, 0.3); 
+      }
+      
+      .macro-value.risk-down { 
+        color: var(--positive); 
+        text-shadow: 0 0 10px rgba(0, 255, 65, 0.3); 
+      }
+      
+      .widget { 
+        background-color: var(--navy); 
+        padding: 1.5rem; 
+        border-radius: 12px; 
+        margin-bottom: 2rem; 
+        box-shadow: 0 10px 30px -10px rgba(2,12,27,0.7); 
+      }
+      
+      .widget-header { 
+        display: grid; 
+        grid-template-columns: auto 1fr auto; 
+        align-items: center; 
+        gap: 1.5rem; 
+        margin-bottom: 1.5rem; 
+      }
+      
+      .controls-left { 
+        display: flex; 
+        align-items: center; 
+        gap: 0.8rem; 
+        justify-content: flex-start; 
+        flex-wrap: wrap; 
+      }
+      
+      .widget-title { 
+        color: var(--lightest-slate); 
+        font-size: 1.2rem; 
+        text-align: center; 
+      }
+      
+      .portfolio-view .widget-title { display: none; }
+      
+      .filter-controls { 
+        display: flex; 
+        gap: 1rem; 
+        align-items: center; 
+        justify-content: flex-end; 
+      }
+      
+      .filter-toggle { 
+        display: flex; 
+        border-radius: 20px; 
+        overflow: hidden; 
+        height: 36px; 
+        border: 1px solid var(--light-navy); 
+        background: var(--dark-navy); 
+      }
+      
+      .filter-btn { 
+        background-color: transparent; 
+        color: var(--slate); 
+        border: none; 
+        padding: 0 16px; 
+        cursor: pointer; 
+        font-weight: 600; 
+        font-size: 0.85rem; 
+        transition: all 0.2s; 
+      }
+      
+      .filter-btn:hover { color: var(--gold); }
+      .filter-btn.active { background-color: var(--gold); color: var(--dark-navy); }
+      
+      .action-btn {
+        background-color: transparent;
+        border: 1px solid var(--light-navy);
+        color: var(--lightest-slate);
+        padding: 0 16px;
+        height: 36px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+      
+      .action-btn:hover { border-color: var(--gold); color: var(--gold); }
+      
+      .table-wrapper { overflow-x: auto; border-radius: 8px; }
+      
+      .data-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+      
+      .data-table th, .data-table td { 
+        padding: 14px 12px; 
+        text-align: left; 
+        border-bottom: 1px solid var(--light-navy); 
+        white-space: nowrap; 
+        vertical-align: middle; 
+      }
+      
+      .data-table thead th { 
+        background-color: var(--dark-navy); 
+        color: var(--light-slate); 
+        font-weight: 600; 
+        position: sticky; 
+        top: 0; 
+        z-index: 10; 
+        text-transform: uppercase; 
+        font-size: 0.8rem; 
+        letter-spacing: 0.5px; 
+      }
+      
+      .data-table thead th:not(:first-child) { text-align: center; }
+      .data-table thead th[data-sort="empresa"] { text-align: center !important; }
+      .data-table thead th.sortable:hover { color: var(--gold); cursor: pointer; }
+      
+      .data-table thead th span::after { 
+        content: ''; 
+        display: inline-block; 
+        margin-left: 5px; 
+        opacity: 0.3; 
+        width: 0.8em; 
+      }
+      
+      .data-table thead th.sort-asc span::after { content: '▲'; opacity: 1; color: var(--gold); }
+      .data-table thead th.sort-desc span::after { content: '▼'; opacity: 1; color: var(--gold); }
+      
+      .data-table tbody tr { transition: background-color 0.2s; }
+      
+      .data-table tbody tr.clickable:hover { 
+        background-color: var(--light-navy); 
+        cursor: pointer; 
+        transform: scale(1.005); 
+      }
+      
+      .data-table tfoot tr { 
+        border-top: 2px solid var(--gold); 
+        background-color: rgba(255, 195, 0, 0.05); 
+      }
+      
+      .data-table tfoot td { 
+        font-weight: bold; 
+        color: var(--lightest-slate); 
+        padding-top: 15px; 
+        font-size: 1rem; 
+      }
+      
+      .sniper-buy { 
+        color: var(--positive); 
+        font-weight: bold; 
+        animation: pulse-green 2s infinite; 
+      }
+      
+      .sniper-sell { 
+        color: var(--negative); 
+        font-weight: bold; 
+        animation: pulse-red 2s infinite; 
+      }
+      
+      @keyframes pulse-green { 
+        0% { text-shadow: 0 0 0 rgba(40, 167, 69, 0.4); } 
+        50% { text-shadow: 0 0 10px rgba(40, 167, 69, 0.8); } 
+        100% { text-shadow: 0 0 0 rgba(40, 167, 69, 0.4); } 
+      }
+      
+      @keyframes pulse-red { 
+        0% { text-shadow: 0 0 0 rgba(220, 53, 69, 0.4); } 
+        50% { text-shadow: 0 0 10px rgba(220, 53, 69, 0.8); } 
+        100% { text-shadow: 0 0 0 rgba(220, 53, 69, 0.4); } 
+      }
+      
+      .text-center { text-align: center !important; }
+      .text-right { text-align: right !important; }
+      .var-positive { color: var(--positive); }
+      .var-negative { color: var(--negative); }
+      
+      .tir-marker { 
+        display: inline-block; 
+        width: 6px; 
+        height: 6px; 
+        border-radius: 50%; 
+        background-color: var(--gold); 
+        margin-left: 5px; 
+        visibility: hidden; 
+        box-shadow: 0 0 5px var(--gold); 
+      }
+      
+      .tir-marker.highlight { visibility: visible; }
+      
+      .loader { 
+        text-align: center; 
+        padding: 60px; 
+        color: var(--slate); 
+        font-size: 1.2rem; 
+        animation: pulse 1.5s infinite; 
+      }
+      
+      @keyframes pulse { 
+        0% { opacity: 0.5; } 
+        50% { opacity: 1; } 
+        100% { opacity: 0.5; } 
+      }
+      
+      .portfolio-dashboard { display: none; }
+      .portfolio-view .portfolio-dashboard { 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        gap: 2rem; 
+        width: 100%; 
+      }
+      
+      .stat-box { 
+        background-color: var(--dark-navy); 
+        padding: 10px 20px; 
+        border-radius: 6px; 
+        text-align: center; 
+        border: 1px solid var(--light-navy); 
+        min-width: 150px; 
+      }
+      
+      .stat-box .label { 
+        font-size: 0.75rem; 
+        color: var(--slate); 
+        text-transform: uppercase; 
+        margin-bottom: 5px; 
+      }
+      
+      .stat-box .value { 
+        font-size: 1.4rem; 
+        font-weight: bold; 
+        color: var(--gold); 
+        font-family: 'Courier New', monospace; 
+      }
+      
+      .modal-overlay { 
+        position: fixed; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        background-color: rgba(10, 25, 47, 0.95); 
+        backdrop-filter: blur(5px);
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        z-index: 1000; 
+        opacity: 0; 
+        visibility: hidden; 
+        transition: all 0.3s ease; 
+      }
+      
+      .modal-overlay.visible { opacity: 1; visibility: visible; }
+      
+      .modal-palco { 
+        background-color: var(--navy); 
+        border-radius: 12px; 
+        width: 95%; 
+        max-width: 1000px; 
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        transform: scale(0.9); 
+        border: 1px solid var(--light-navy); 
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      }
+      
+      .modal-overlay.visible .modal-palco { transform: scale(1); }
+      
+      .modal-header { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        padding: 1.5rem; 
+        border-bottom: 1px solid var(--light-navy); 
+      }
+      
+      #modal-titulo { color: var(--lightest-slate); font-size: 1.5rem; }
+      
+      .modal-cerrar { 
+        background: none; 
+        border: none; 
+        color: var(--slate); 
+        font-size: 2rem; 
+        cursor: pointer; 
+        line-height: 1; 
+        transition: color 0.2s; 
+      }
+      
+      .modal-cerrar:hover { color: var(--negative); }
+      
+      .modal-body { 
+        padding: 1.5rem; 
+        max-height: 85vh; 
+        overflow-y: auto; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 2rem; 
+      }
+      
+      .modal-seccion h3 { 
+        color: var(--lightest-slate); 
+        font-size: 1rem; 
+        margin-bottom: 1rem; 
+        border-bottom: 1px solid var(--light-navy); 
+        padding-bottom: 0.5rem; 
+        text-transform: uppercase; 
+        letter-spacing: 1px; 
+      }
+      
+      .tabla-flujo-wrapper { 
+        max-height: 300px; 
+        overflow-y: auto; 
+        border: 1px solid var(--light-navy); 
+        border-radius: 4px; 
+      }
+      
+      .tabla-flujo { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+      .tabla-flujo th, .tabla-flujo td { padding: 10px; text-align: left; border-bottom: 1px solid var(--light-navy); }
+      .tabla-flujo th { background-color: var(--dark-navy); position: sticky; top: 0; }
+      .tabla-flujo .proximo-cupon { background-color: rgba(255, 195, 0, 0.1); font-weight: bold; border-left: 3px solid var(--gold); }
+      
+      .simulador-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; align-items: flex-end; }
+      .sim-input-group label { display: block; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--slate); }
+      .sim-input-group input { width: 100%; background-color: var(--dark-navy); border: 1px solid var(--light-navy); border-radius: 4px; color: var(--lightest-slate); padding: 10px; font-size: 1rem; }
+      .sim-input-group input:focus { outline: none; border-color: var(--gold); }
+      .sim-btn { background-color: var(--gold); color: var(--dark-navy); border: none; padding: 0 20px; border-radius: 4px; font-weight: bold; cursor: pointer; height: 40px; transition: transform 0.1s; }
+      .sim-btn:active { transform: scale(0.95); }
+      .sim-output-group { background-color: var(--dark-navy); padding: 10px; border-radius: 4px; text-align: center; border: 1px solid var(--light-navy); }
+      .sim-output-group .label { font-size: 0.75rem; color: var(--slate); }
+      .sim-output-group .value { font-size: 1.2rem; font-weight: bold; color: var(--gold); }
+      
+      .pizarra-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; }
+      @media (max-width: 768px) { .pizarra-grid { grid-template-columns: 1fr; } }
+      #pizarra-assets-list { max-height: 400px; overflow-y: auto; padding-right: 1rem; }
+      .pizarra-asset { display: grid; grid-template-columns: 1fr 2fr; align-items: center; gap: 1rem; margin-bottom: 0.8rem; padding: 5px; border-bottom: 1px solid var(--dark-navy); }
+      .pizarra-asset label { color: var(--lightest-slate); font-weight: 500; font-size: 0.95rem; }
+      .pizarra-asset input { width: 100%; background-color: var(--dark-navy); border: 1px solid var(--light-navy); color: var(--white); padding: 5px; border-radius: 4px; }
+      #pizarra-results { background-color: var(--dark-navy); border-radius: 8px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; border: 1px solid var(--light-navy); }
+
+      .arbitrage-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+      .input-wrapper { display: flex; gap: 5px; }
+      .arb-select { flex: 2; background-color: var(--dark-navy); border: 1px solid var(--light-navy); color: var(--lightest-slate); padding: 10px; border-radius: 4px; }
+      .price-input { flex: 1; min-width: 80px; background-color: var(--dark-navy); border: 1px solid var(--light-navy); color: var(--gold); padding: 10px; border-radius: 4px; font-weight: bold; text-align: right; }
+      .comparison-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+      .comparison-table th, .comparison-table td { padding: 12px; border: 1px solid var(--light-navy); text-align: center; }
+      .comparison-table th { background-color: var(--dark-navy); color: var(--lightest-slate); }
+      .cell-winner { color: var(--positive) !important; font-weight: bold; border: 1px solid var(--positive); background-color: rgba(40, 167, 69, 0.1); }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header-container">
+        <div class="header-title-row">
+          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/CABJ70.png/200px-CABJ70.png" class="header-icon-img" alt="Boca Juniors">
+          <h1>La Bombonera <span class="oro">Digital</span></h1>
+        </div>
+        <div class="macro-dashboard" id="macroDashboard">
+          <div class="macro-card"><span class="macro-label">MEP</span><span class="macro-value" id="mepDisplay">-</span></div>
+          <div class="macro-card"><span class="macro-label">CCL</span><span class="macro-value" id="cclDisplay">-</span></div>
+          <div class="macro-card"><span class="macro-label">RIESGO PAÍS</span><span class="macro-value" id="riskDisplay">-</span></div>
+          <div class="macro-card"><span class="macro-label">BRECHA</span><span class="macro-value" id="brechaDisplay">-</span></div>
+        </div>
+      </div>
+
+      <div class="widget" id="mainWidget">
+        <div class="widget-header">
+          <div class="controls-left"> 
+            <a href="<?= webAppUrl ? webAppUrl : '?' ?>" target="_top" style="text-decoration: none;">
+              <button class="action-btn" style="border-color: var(--gold); color: var(--gold);">📊 VOLVER A CARTERA</button>
+            </a>
+            <div class="filter-toggle" id="viewToggle"> 
+              <button class="filter-btn active" data-view="mercado">Mercado</button> 
+              <button class="filter-btn" data-view="cartera">Mi Cartera</button> 
+            </div>
+            <div class="filter-toggle" id="typeFilter"> 
+              <button class="filter-btn active" data-type="Bono">Bonos</button> 
+              <button class="filter-btn" data-type="ONs">ONs</button> 
+            </div> 
+            <button class="action-btn" id="fixtureBtn">Fixture</button>
+            <button class="action-btn" id="curveBtn">Curva</button>
+            <button class="action-btn" id="pizarraBtn">Pizarra</button>
+            <button class="action-btn" id="arbitradorBtn">Arbitrador</button>
+          </div>
+          <div class="portfolio-dashboard" id="portfolioDashboard">
+            <div class="stat-box"> <div class="label">Valor Total</div> <div class="value" id="totalValue">-</div> </div>
+            <div class="stat-box"> <div class="label">TIR Ponderada</div> <div class="value" id="weightedTir">-</div> </div>
+            <div class="stat-box"> <div class="label">Duración Pond.</div> <div class="value" id="weightedDuration">-</div> </div>
+          </div>
+          <h2 class="widget-title">Tabla de Comparables</h2>
+          <div class="filter-controls"> 
+            <div class="filter-toggle" id="currencyToggle"> 
+              <button class="filter-btn active" data-currency="USD">USD</button> 
+              <button class="filter-btn" data-currency="ARS">ARS</button> 
+            </div> 
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead id="tableHeader"></thead>
+            <tbody id="dataTableBody"></tbody>
+            <tfoot id="tableFooter"></tfoot>
+          </table>
+          <div id="loader" class="loader">Conectando con La Bombonera...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODALES -->
+    <div class="modal-overlay" id="modalPalco">
+      <div class="modal-palco"><div class="modal-header"><h2 id="modal-titulo"></h2><button class="modal-cerrar" id="modalCerrar">&times;</button></div><div class="modal-body" id="modalBody"></div></div>
+    </div>
+    <div class="modal-overlay" id="modalFixture">
+      <div class="modal-palco" style="max-width: 1100px;"><div class="modal-header"><h2 id="modal-fixture-titulo">Fixture de Cobranzas</h2><button class="modal-cerrar" id="modalFixtureCerrar">&times;</button></div><div class="modal-body"><div class="modal-seccion"><p style="font-size:0.9rem; margin-bottom: 1rem; color: var(--slate);">Proyección apilada: <strong style="color:var(--gold)">Renta</strong> vs <strong style="color:var(--blue-boca)">Capital</strong>.</p><div style="height: 400px; position: relative;"><canvas id="fixtureChart"></canvas></div></div></div></div>
+    </div>
+    <div class="modal-overlay" id="modalCurva">
+      <div class="modal-palco" style="max-width: 1100px;"><div class="modal-header"><h2 id="modal-curva-titulo">Curva de Rendimientos</h2><button class="modal-cerrar" id="modalCurvaCerrar">&times;</button></div><div class="modal-body"><div class="modal-seccion"><div style="height: 500px; position: relative;"><canvas id="yieldCurveChart"></canvas></div></div></div></div>
+    </div>
+    
+    <div class="modal-overlay" id="modalPizarra">
+      <div class="modal-palco" style="max-width: 1000px;">
+        <div class="modal-header">
+          <h2 id="modal-pizarra-titulo">Pizarra de Bianchi</h2>
+          <div style="display:flex; align-items:center; gap:1rem;">
+            <button class="action-btn" id="btn-reset-pizarra">🔄 Resetear a mi cartera real</button>
+            <button class="modal-cerrar" id="modalPizarraCerrar">&times;</button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <div class="pizarra-grid">
+            <div class="modal-seccion">
+              <h3>Activos (USD)</h3>
+              <div id="pizarra-assets-list"></div>
+            </div>
+            <div class="modal-seccion">
+              <h3>Métricas</h3>
+              <div id="pizarra-results">
+                <div class="stat-box pizarra-stat" style="width:100%">
+                  <div class="label">Valor Total</div>
+                  <div class="value" id="pizarra-total-value">-</div>
+                </div>
+                <div class="stat-box pizarra-stat" style="width:100%">
+                  <div class="label">TIR Ponderada</div>
+                  <div class="value" id="pizarra-weighted-tir">-</div>
+                  <div style="font-size:0.8rem; margin-top:4px;" id="pizarra-tir-delta">-</div>
+                </div>
+                <div class="stat-box pizarra-stat" style="width:100%">
+                  <div class="label">Duración Pond.</div>
+                  <div class="value" id="pizarra-weighted-dur">-</div>
+                  <div style="font-size:0.8rem; margin-top:4px;" id="pizarra-dur-delta">-</div>
+                </div>
+              </div>
+              <div style="margin-top: 1rem;" class="tabla-flujo-wrapper">
+                <table class="tabla-flujo">
+                  <thead>
+                    <tr>
+                      <th>Ticker</th>
+                      <th class="text-right">Nominales</th>
+                      <th class="text-right">TIR</th>
+                      <th class="text-right">Dur.</th>
+                      <th class="text-right">% Cart.</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pizarra-desglose-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="modalArbitrador">
+      <div class="modal-palco" style="max-width: 1100px;">
+        <div class="modal-header">
+          <h2 style="color: var(--gold);">Arbitrador de Bonos (Swap)</h2>
+          <button class="modal-cerrar" id="modalArbitradorCerrar">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-seccion">
+            <h3>Configuración del Canje</h3>
+            <div class="arbitrage-inputs" style="grid-template-columns: 1fr 1fr 1fr;">
+               <div class="sim-input-group">
+                 <label>Bono a Vender (Origen)</label>
+                 <div class="input-wrapper">
+                   <select id="arb-sell-ticker" class="arb-select"></select>
+                   <input type="number" id="arb-sell-price" class="price-input" placeholder="Precio" step="0.01">
+                 </div>
+               </div>
+               <div class="sim-input-group">
+                 <label>Nominales a Vender</label>
+                 <input type="number" id="arb-sell-qty" value="1000">
+               </div>
+               <div class="sim-input-group">
+                 <label>Comisión Broker (%)</label>
+                 <input type="number" id="arb-comm" value="0.786" step="0.001">
+               </div>
+            </div>
+            <div class="arbitrage-inputs">
+              <div class="sim-input-group">
+                <label>Alternativa 1</label>
+                <div class="input-wrapper">
+                  <select id="arb-buy-1" class="arb-select"></select>
+                  <input type="number" id="arb-buy-1-price" class="price-input" placeholder="Precio" step="0.01">
+                </div>
+              </div>
+              <div class="sim-input-group">
+                <label>Alternativa 2</label>
+                <div class="input-wrapper">
+                  <select id="arb-buy-2" class="arb-select"></select>
+                  <input type="number" id="arb-buy-2-price" class="price-input" placeholder="Precio" step="0.01">
+                </div>
+              </div>
+              <div class="sim-input-group">
+                <label>Alternativa 3</label>
+                <div class="input-wrapper">
+                  <select id="arb-buy-3" class="arb-select"></select>
+                  <input type="number" id="arb-buy-3-price" class="price-input" placeholder="Precio" step="0.01">
+                </div>
+              </div>
+            </div>
+            <div style="text-align: center; margin-top: 1rem;">
+              <button class="sim-btn" id="btn-calcular-arb" style="width: 200px;">CALCULAR COMPARACIÓN</button>
+            </div>
+          </div>
+          <div class="modal-seccion" id="arb-results-container" style="display:none;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <h3>Resultados (Semáforo Senior)</h3>
+              <div class="stat-box" style="padding: 5px 15px; min-width: auto;">
+                 <span class="label">Costo Total Canje:</span> 
+                 <span class="value" id="arb-total-cost" style="font-size: 1rem;">-</span>
+              </div>
+            </div>
+            <div class="table-wrapper">
+              <table class="comparison-table">
+                <thead id="arb-table-head"></thead>
+                <tbody id="arb-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        
+        let allData = {}; 
+        let currentCurrency = 'USD'; 
+        let currentTypeFilter = 'Bono'; 
+        let currentView = 'mercado'; 
+        let sortConfig = { key: 'tir', direction: 'desc' };
+        let fixtureChartInstance = null; 
+        let yieldCurveInstance = null; 
+        let currentModalTicker = null;
+
+        const tableHeader = document.getElementById('tableHeader'); 
+        const tableBody = document.getElementById('dataTableBody'); 
+        const tableFooter = document.getElementById('tableFooter'); 
+        const loader = document.getElementById('loader'); 
+        const mainWidget = document.getElementById('mainWidget');
+
+        function formatNumber(num, decimals = 2, isCurrency = false) { 
+          if (num === null || typeof num === 'undefined' || isNaN(num) || num === 'N/A' || num === 'Error') return 'N/A'; 
+          if (num > -0.005 && num < 0.005 && isCurrency) return '-'; 
+          if (num === 0 && !isCurrency && decimals === 0) return '0'; 
+          if (num === 0 && !isCurrency) return 'N/A'; 
+          return num.toLocaleString('es-AR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); 
+        }
+        
+        function formatLargeNumber(num, decimals = 0) { 
+          if (num === null || typeof num === 'undefined' || isNaN(num) || num === 0) return 'N/A'; 
+          return num.toLocaleString('es-AR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }); 
+        }
+        
+        function formatVolume(vol) { 
+          if (vol === null || typeof vol === 'undefined' || isNaN(vol) || vol === 0) return 'N/A'; 
+          if (vol >= 1000000) return `${(vol / 1000000).toFixed(2)} M`; 
+          if (vol >= 1000) return `${(vol / 1000).toFixed(1)} k`; 
+          return vol.toString(); 
+        }
+
+        function fetchData() { 
+          loader.style.display = 'block'; 
+          tableBody.innerHTML = ''; 
+          tableFooter.innerHTML = ''; 
+          
+          google.script.run
+            .withSuccessHandler(response => { 
+              const data = JSON.parse(response); 
+              if (data.error) { loader.innerText = `Error: ${data.error}`; return; } 
+              allData = data; 
+              
+              if(allData.macro) {
+                document.getElementById('mepDisplay').innerText = allData.macro.mep ? allData.macro.mep : '-';
+                document.getElementById('cclDisplay').innerText = allData.macro.ccl ? allData.macro.ccl : '-';
+                document.getElementById('brechaDisplay').innerText = allData.macro.brecha ? `${allData.macro.brecha}%` : '-';
+                const riskElem = document.getElementById('riskDisplay');
+                riskElem.innerText = allData.macro.riesgoPais ? allData.macro.riesgoPais : '-';
+                riskElem.classList.remove('risk-up', 'risk-down');
+                if (allData.macro.riesgoPaisVar > 0) riskElem.classList.add('risk-up');
+                if (allData.macro.riesgoPaisVar < 0) riskElem.classList.add('risk-down');
+              }
+              updateTableHeaders(); 
+              renderTable(); 
+              loader.style.display = 'none'; 
+            })
+            .withFailureHandler(err => { loader.innerText = `Error: ${err.message}`; })
+            .getMasterDataBombonera(); 
+        }
+
+        function updateTableHeaders() { 
+          let headersHTML = '<tr>'; 
+          if (currentView === 'mercado') { 
+            headersHTML += `
+              <th class="sortable" data-sort="ticker"><span>Ticker</span></th>
+              <th class="sortable" data-sort="empresa"><span>Emisor</span></th>
+              <th class="sortable" data-sort="vencimiento"><span>Vto.</span></th>
+              <th class="sortable" data-sort="calificacion"><span>Calif.</span></th>
+              <th class="sortable" data-sort="precio"><span>Precio</span></th>
+              <th class="sortable" data-sort="var_diaria"><span>Variac </span></th>
+              <th class="sortable" data-sort="tasaProximoCupon"><span>Tasa </span></th>
+              <th class="sortable" data-sort="valorResidual"><span>Residual</span></th>
+              <th class="sortable" data-sort="mep"><span>MEP </span></th>
+              <th class="sortable" data-sort="tir"><span>TIR </span></th>
+              <th class="sortable" data-sort="modifiedDuration"><span>Dur. Mod.</span></th>
+              <th class="sortable" data-sort="volumen"><span>Volumen</span></th>`; 
+          } else { 
+            headersHTML += `
+              <th class="sortable" data-sort="ticker"><span>Ticker</span></th>
+              <th class="sortable" data-sort="empresa"><span>Emisor</span></th>
+              <th class="sortable" data-sort="nominales"><span>Nominales</span></th>
+              <th class="sortable" data-sort="precio"><span>Precio</span></th>
+              <th class="sortable" data-sort="posicionValuada"><span>Pos. Valuada</span></th>
+              <th class="sortable" data-sort="tir"><span>TIR (%)</span></th>`; 
+          } 
+          headersHTML += '</tr>'; 
+          tableHeader.innerHTML = headersHTML; 
+          tableHeader.querySelectorAll('.sortable').forEach(th => th.addEventListener('click', handleSort)); 
+        }
+
+        function renderTable() { 
+          tableBody.innerHTML = ''; 
+          tableFooter.innerHTML = ''; 
+          
+          let dataToRender = allData.bonos.filter(instrumento => instrumento.tipo === currentTypeFilter); 
+          if (currentView === 'cartera') dataToRender = dataToRender.filter(bono => bono[`nominales${currentCurrency}`] > 0); 
+          
+          const getVal = (bono, k) => { 
+            const nominales = bono[`nominales${currentCurrency}`], precio = bono[`precio${currentCurrency}`]; 
+            if (k === 'empresa') return bono.empresa;
+            if (k === 'vencimiento') return bono.vencimiento;
+            if (k === 'calificacion') return bono.calificacion;
+            if(currentView === 'cartera') { 
+              if(k === 'posicionValuada') return (nominales * precio) / 100; 
+            } 
+            return bono[`${k}${currentCurrency}`] || bono[k]; 
+          }; 
+          
+          [...dataToRender].sort((a, b) => { 
+            const key = sortConfig.key; 
+            let valA = getVal(a, key), valB = getVal(b, key); 
+            
+            if (key === 'ticker' || key === 'empresa' || key === 'vencimiento' || key === 'calificacion') { 
+               if (valA === null || valA === undefined) valA = "";
+               if (valB === null || valB === undefined) valB = "";
+               return sortConfig.direction === 'asc' ? valA.toString().localeCompare(valB.toString()) : valB.toString().localeCompare(valA.toString());
+            }
+            
+            if (valA === null || valA === undefined || isNaN(valA)) valA = sortConfig.direction === 'asc' ? Infinity : -Infinity; 
+            if (valB === null || valB === undefined || isNaN(valB)) valB = sortConfig.direction === 'asc' ? Infinity : -Infinity; 
+            
+            return sortConfig.direction === 'asc' ? valA - valB : valB - valA; 
+          }).forEach(bono => { 
+            const row = document.createElement('tr'); 
+            if (bono.hasFlow) { row.classList.add('clickable'); row.dataset.ticker = bono.tickerUSD; } 
+            const ticker = (currentCurrency === 'ARS' && bono.tickerARS !== 'N/A') ? bono.tickerARS : bono.tickerUSD; 
+            const precio = bono[`precio${currentCurrency}`];
+            const tir = bono[`tir${currentCurrency}`];
+            const var_diaria = bono[`var_diaria${currentCurrency}`]; 
+            const modifiedDuration = bono[`modifiedDuration${currentCurrency}`] || bono.modifiedDurationUSD; 
+            
+            let priceCellClass = '', priceIcon = '';
+            if (currentView === 'mercado' && currentCurrency === 'USD') { 
+              if (bono.targetCompra && precio > 0 && precio <= bono.targetCompra) { priceCellClass = 'sniper-buy'; priceIcon = ' 🎯'; } 
+              else if (bono.targetVenta && precio > 0 && precio >= bono.targetVenta) { priceCellClass = 'sniper-sell'; priceIcon = ' ⚠️'; } 
+            }
+            
+            if (currentView === 'mercado') { 
+                const varClass = var_diaria > 0 ? 'var-positive' : var_diaria < 0 ? 'var-negative' : ''; 
+                const highlightClass = (bono.nominalesUSD > 0 || bono.nominalesARS > 0) ? 'highlight' : ''; 
+                row.innerHTML = `
+                  <td>${ticker}</td>
+                  <td style="font-size:0.85em; color:var(--light-slate);">${bono.empresa || '-'}</td>
+                  <td class="text-center">${bono.vencimiento || '-'}</td>
+                  <td class="text-center" style="font-size:0.85em; color:var(--light-slate);">${bono.calificacion || '-'}</td>
+                  <td class="text-center ${priceCellClass}">${formatNumber(precio, 2, true)}${priceIcon}</td>
+                  <td class="text-center ${varClass}">${formatNumber(var_diaria)}%</td>
+                  <td class="text-center">${formatNumber(bono.tasaProximoCupon)}%</td>
+                  <td class="text-center">${formatNumber(bono.valorResidual, 0)}%</td>
+                  <td class="text-center">$ ${formatNumber(bono.mep, 2, true)}</td>
+                  <td class="text-center"><b>${formatNumber(tir)}%</b> <span class="tir-marker ${highlightClass}"></span></td>
+                  <td class="text-center">${formatNumber(modifiedDuration)}</td>
+                  <td class="text-center">${formatVolume(bono[`volumen${currentCurrency}`])}</td>`; 
+            } else { 
+                const nominales = bono[`nominales${currentCurrency}`]; 
+                const posicionValuada = (nominales * precio) / 100; 
+                const highlightClass = (bono.nominalesUSD > 0 || bono.nominalesARS > 0) ? 'highlight' : ''; 
+                row.innerHTML = `
+                  <td>${ticker}</td>
+                  <td style="font-size:0.85em; color:var(--light-slate);">${bono.empresa || '-'}</td>
+                  <td class="text-center">${formatLargeNumber(nominales)}</td>
+                  <td class="text-center">${formatNumber(precio, 2, true)}</td>
+                  <td class="text-center">$ ${formatLargeNumber(posicionValuada, 2)}</td>
+                  <td class="text-center"><b>${formatNumber(tir)}%</b> <span class="tir-marker ${highlightClass}"></span></td>`; 
+            } 
+            tableBody.appendChild(row); 
+          }); 
+          
+          if (currentView === 'cartera') { 
+            const metrics = allData.globalMetrics; 
+            document.getElementById('totalValue').textContent = `$ ${formatLargeNumber(metrics.totalValueUSD, 2)}`; 
+            document.getElementById('weightedTir').textContent = `${formatNumber(metrics.weightedTirUSD)} %`; 
+            document.getElementById('weightedDuration').textContent = formatNumber(metrics.weightedDurationUSD); 
+            tableFooter.innerHTML = ''; 
+          } 
+          updateSortHeadersState(); 
+        }
+
+        function handleSort(e) { 
+          const newKey = e.currentTarget.dataset.sort; 
+          if (sortConfig.key === newKey) { sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc'; } 
+          else { sortConfig.key = newKey; sortConfig.direction = (['ticker', 'empresa', 'nominales'].includes(newKey)) ? 'asc' : 'desc'; } 
+          renderTable(); 
+        }
+        
+        function updateSortHeadersState() { 
+          tableHeader.querySelectorAll('.sortable').forEach(th => { 
+            th.classList.remove('sort-asc', 'sort-desc'); 
+            if (th.dataset.sort === sortConfig.key) { th.classList.add(sortConfig.direction === 'asc' ? 'sort-asc' : 'sort-desc'); } 
+          }); 
+        }
+        
+        document.getElementById('viewToggle').addEventListener('click', e => { 
+          if (e.target.classList.contains('filter-btn')) { 
+            currentView = e.target.dataset.view; 
+            mainWidget.className = `widget ${currentView}-view`; 
+            document.getElementById('viewToggle').querySelector('.active').classList.remove('active'); 
+            e.target.classList.add('active'); 
+            updateTableHeaders(); 
+            renderTable(); 
+          } 
+        });
+        
+        document.getElementById('currencyToggle').addEventListener('click', e => { 
+          if (e.target.classList.contains('filter-btn')) { 
+            currentCurrency = e.target.dataset.currency; 
+            document.getElementById('currencyToggle').querySelector('.active').classList.remove('active'); 
+            e.target.classList.add('active'); 
+            renderTable(); 
+          } 
+        });
+        
+        document.getElementById('typeFilter').addEventListener('click', e => { 
+          if (e.target.classList.contains('filter-btn')) { 
+            currentTypeFilter = e.target.dataset.type; 
+            document.getElementById('typeFilter').querySelector('.active').classList.remove('active'); 
+            e.target.classList.add('active'); 
+            renderTable(); 
+          } 
+        });
+
+        tableBody.addEventListener('click', e => {
+          const tr = e.target.closest('tr.clickable');
+          if (tr && tr.dataset.ticker) {
+            openModal(tr.dataset.ticker);
+          }
+        });
+
+        document.getElementById('modalCerrar').addEventListener('click', () => {
+          document.getElementById('modalPalco').classList.remove('visible');
+        });
+        document.getElementById('modalFixtureCerrar').addEventListener('click', () => {
+          document.getElementById('modalFixture').classList.remove('visible');
+        });
+        document.getElementById('modalCurvaCerrar').addEventListener('click', () => {
+          document.getElementById('modalCurva').classList.remove('visible');
+        });
+        document.getElementById('modalPizarraCerrar').addEventListener('click', () => {
+          document.getElementById('modalPizarra').classList.remove('visible');
+        });
+        document.getElementById('modalArbitradorCerrar').addEventListener('click', () => {
+          document.getElementById('modalArbitrador').classList.remove('visible');
+        });
+
+        document.getElementById('fixtureBtn').addEventListener('click', openFixtureModal);
+        document.getElementById('curveBtn').addEventListener('click', openYieldCurveModal);
+        document.getElementById('pizarraBtn').addEventListener('click', openPizarraModal);
+        document.getElementById('arbitradorBtn').addEventListener('click', () => {
+          document.getElementById('modalArbitrador').classList.add('visible');
+          populateArbitrageSelects();
+        });
+
+        // --- FUNCIONES MODALES ---
+        function openModal(tickerUSD) { 
+          const bono = allData.bonos.find(b => b.tickerUSD === tickerUSD); 
+          if (!bono) return; 
+          currentModalTicker = tickerUSD; 
+          document.getElementById('modal-titulo').innerText = `${bono.tickerUSD} / ${bono.tickerARS} - Detalle`; 
+          const modalBody = document.getElementById('modalBody'); 
+          let html = `<div class="modal-seccion">
+            <h3>Simulador de Precio (${currentCurrency})</h3>
+            <div class="simulador-grid">
+              <div class="sim-input-group"><label>Precio a Simular</label><input type="number" id="sim-precio" value="${bono[`precio${currentCurrency}`]}" step="0.01"></div>
+              <button class="sim-btn" id="btn-calcular-sim">CALCULAR</button>
+              <div class="sim-output-group"><div class="label">TIR Proyectada</div><div class="value" id="sim-tir">${formatNumber(bono[`tir${currentCurrency}`])}%</div></div>
+              <div class="sim-output-group"><div class="label">Duración Mod.</div><div class="value" id="sim-duration">${formatNumber(bono[`modifiedDuration${currentCurrency}`])}</div></div>
+            </div></div>
+            <div class="modal-seccion"><h3>Flujo de Fondos (x 100 Nominales)</h3><div class="tabla-flujo-wrapper"><table class="tabla-flujo"><thead><tr><th>Fecha</th><th>Concepto</th><th>Renta</th><th>Amort.</th><th>Total</th></tr></thead><tbody>`; 
+          bono.flujosFuturos.forEach((f, index) => { 
+            const fecha = new Date(f.fechaPago); 
+           html += `<tr class="${index === 0 ? 'proximo-cupon' : ''}"><td>${fecha.toLocaleDateString('es-AR')}</td><td>Cupon ${f.cuponNro}</td><td>${formatNumber(f.renta, 2, true)}</td><td>${formatNumber(f.capital, 2, true)}</td><td><b>${formatNumber(f.total, 2, true)}</b></td></tr>`;
+          }); 
+          html += `</tbody></table></div></div>`; 
+          modalBody.innerHTML = html; 
+          document.getElementById('modalPalco').classList.add('visible'); 
+
+          document.getElementById('btn-calcular-sim').addEventListener('click', () => { 
+            const newPrice = parseFloat(document.getElementById('sim-precio').value); 
+            const simTir = document.getElementById('sim-tir'); 
+            const simDur = document.getElementById('sim-duration'); 
+            simTir.innerText = 'Calculando...'; 
+            google.script.run
+              .withSuccessHandler(res => { 
+                if(res.error) { simTir.innerText = 'Error'; } 
+                else { simTir.innerText = `${formatNumber(res.tir)}%`; simDur.innerText = formatNumber(res.duration); } 
+              })
+              .calculateMetricsForCustomPriceBombonera(currentModalTicker, newPrice, currentCurrency); 
+          }); 
+        }
+        
+        function openFixtureModal() { 
+          document.getElementById('modalFixture').classList.add('visible'); 
+          google.script.run.withSuccessHandler(jsonString => { 
+            const data = JSON.parse(jsonString); 
+            if (data.error) { alert('Error: ' + data.error); return; } 
+            const labels = Object.keys(data).sort(); 
+
+            const suffix = currentCurrency === 'ARS' && labels.some(k => data[k].rentaARS > 0) ? 'ARS' : 'USD';
+            const rentas = labels.map(k => data[k][`renta${suffix}`] || 0);
+            const capitales = labels.map(k => data[k][`capital${suffix}`] || 0);
+
+            const ctx = document.getElementById('fixtureChart').getContext('2d'); 
+            if (fixtureChartInstance) fixtureChartInstance.destroy(); 
+            fixtureChartInstance = new Chart(ctx, { 
+              type: 'bar', 
+              data: { 
+                labels: labels, 
+                datasets: [
+                  { label: 'Renta', data: rentas, backgroundColor: '#FFC300' }, 
+                  { label: 'Capital', data: capitales, backgroundColor: '#104F9F' }
+                ] 
+              }, 
+              options: { 
+                responsive: true, 
+                maintainAspectRatio: false, 
+                scales: { 
+                  x: { stacked: true, ticks: { color: '#8892b0' } }, 
+                  y: { stacked: true, ticks: { color: '#8892b0' }, grid: { color: '#233554' } } 
+                }, 
+                plugins: { legend: { labels: { color: '#ccd6f6' } } } 
+              } 
+            }); 
+          }).getPortfolioCashflowBombonera(); 
+        }
+function openYieldCurveModal() {
+  document.getElementById('modalCurva').classList.add('visible');
+  if (yieldCurveInstance) yieldCurveInstance.destroy();
+
+  const getPoints = (filterFn) => allData.bonos
+    .filter(filterFn)
+    .map(b => ({ x: b.modifiedDurationUSD, y: b.tirUSD, label: b.tickerUSD, tipo: b.tipo }));
+
+  // Universo completo de mercado (Bonos + ONs), como referencia de fondo,
+  // sin conectar entre sí — solo puntos de contexto, chicos y tenues.
+  const universoBonos = getPoints(b => b.tipo === 'Bono' && typeof b.tirUSD === 'number');
+  const universoONs = getPoints(b => b.tipo === 'ONs' && typeof b.tirUSD === 'number');
+
+  // TU CARTERA: Bonos + ONs que efectivamente tenés, unificados en una sola
+  // serie (los puntos reales — NO se conectan entre sí, van sueltos).
+  let miCarteraData = getPoints(b => b.nominalesUSD > 0 && typeof b.tirUSD === 'number');
+  miCarteraData.sort((a, b) => a.x - b.x);
+
+  // -----------------------------------------------------------------------
+  // REGRESIÓN CUADRÁTICA (ajuste por mínimos cuadrados): y = a·x² + b·x + c
+  // A diferencia de la interpolación, esta curva NO pasa por cada punto
+  // exacto — resume la tendencia general, igual que la "Curva 24hs" de Rava.
+  // -----------------------------------------------------------------------
+  function ajustarCurva(puntos) {
+    const n = puntos.length;
+    if (n < 3) return null; // hacen falta al menos 3 puntos para un ajuste cuadrático
+
+    let sx = 0, sx2 = 0, sx3 = 0, sx4 = 0, sy = 0, sxy = 0, sx2y = 0;
+    puntos.forEach(p => {
+      const x = p.x, y = p.y, x2 = x * x, x3 = x2 * x, x4 = x3 * x;
+      sx += x; sx2 += x2; sx3 += x3; sx4 += x4;
+      sy += y; sxy += x * y; sx2y += x2 * y;
+    });
+
+    // Sistema 3x3 (ecuaciones normales), resuelto por eliminación de Gauss
+    let M = [
+      [sx4, sx3, sx2, sx2y],
+      [sx3, sx2, sx, sxy],
+      [sx2, sx, n, sy]
+    ];
+    for (let col = 0; col < 3; col++) {
+      let pivotRow = col;
+      for (let r = col + 1; r < 3; r++) if (Math.abs(M[r][col]) > Math.abs(M[pivotRow][col])) pivotRow = r;
+      [M[col], M[pivotRow]] = [M[pivotRow], M[col]];
+      if (Math.abs(M[col][col]) < 1e-9) return null; // sistema mal condicionado
+      for (let r = 0; r < 3; r++) {
+        if (r === col) continue;
+        const factor = M[r][col] / M[col][col];
+        for (let c = col; c < 4; c++) M[r][c] -= factor * M[col][c];
+      }
+    }
+    const a = M[0][3] / M[0][0], b = M[1][3] / M[1][1], c = M[2][3] / M[2][2];
+    return { a, b, c };
+  }
+
+  function generarCurvaSuave(puntos, pasos) {
+    const coef = ajustarCurva(puntos);
+    if (!coef) return [];
+    const xs = puntos.map(p => p.x);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    const curva = [];
+    for (let i = 0; i <= pasos; i++) {
+      const x = xMin + (xMax - xMin) * (i / pasos);
+      const y = coef.a * x * x + coef.b * x + coef.c;
+      curva.push({ x, y });
+    }
+    return curva;
+  }
+
+  const curvaMiCartera = generarCurvaSuave(miCarteraData, 40);
+
+  const portfolioConsolidatedData = [{
+    x: allData.globalMetrics.weightedDurationUSD,
+    y: allData.globalMetrics.weightedTirUSD,
+    label: 'Mi Cartera'
+  }];
+
+  const cleanTirs = [...universoBonos, ...universoONs, ...miCarteraData].map(p => p.y).filter(y => y > 1);
+  const minTir = cleanTirs.length > 0 ? Math.min(...cleanTirs) : 0;
+  const yAxisMin = Math.max(0, minTir - 2);
+
+  const ctx = document.getElementById('yieldCurveChart').getContext('2d');
+  const datasets = [];
+
+  // La curva ajustada (regresión) — solo si hay suficientes puntos
+  if (curvaMiCartera.length > 0) {
+    datasets.push({
+      label: 'Curva RF — Mi Cartera (ajuste)',
+      data: curvaMiCartera,
+      borderColor: '#FFC300',
+      borderWidth: 3,
+      showLine: true,
+      pointRadius: 0,
+      fill: false,
+      tension: 0 // ya es suave por construcción (polinomio evaluado en 40 puntos)
+    });
+  }
+
+  datasets.push(
+    // Los puntos reales de tu cartera — SUELTOS, sin conectar entre sí
+    {
+      label: 'Bonos y ONs en Cartera',
+      data: miCarteraData,
+      backgroundColor: '#fff',
+      borderColor: '#FFC300',
+      borderWidth: 2,
+      showLine: false,
+      pointRadius: 6
+    },
+    // Universo de mercado, de fondo, tenue, sin conectar (referencia)
+    {
+      label: 'Bonos Soberanos (mercado)',
+      data: universoBonos,
+      backgroundColor: 'rgba(255,195,0,0.25)',
+      borderColor: 'rgba(255,195,0,0.35)',
+      showLine: false,
+      pointRadius: 3
+    },
+    {
+      label: 'ONs (mercado)',
+      data: universoONs,
+      backgroundColor: 'rgba(30,136,229,0.25)',
+      borderColor: 'rgba(30,136,229,0.35)',
+      showLine: false,
+      pointRadius: 3
+    },
+    {
+      label: 'Mi Cartera (Total)',
+      data: portfolioConsolidatedData,
+      backgroundColor: '#fff',
+      pointStyle: 'star',
+      radius: 15,
+      borderColor: '#FFC300',
+      borderWidth: 3
+    }
+  );
+
+  yieldCurveInstance = new Chart(ctx, {
+    type: 'scatter',
+    data: { datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Duración (Años)', color: '#8892b0' }, ticks: { color: '#8892b0' }, grid: { color: '#233554' } },
+        y: { min: yAxisMin, title: { display: true, text: 'TIR (%)', color: '#8892b0' }, ticks: { color: '#8892b0' }, grid: { color: '#233554' } }
+      },
+      plugins: {
+        legend: { labels: { color: '#ccd6f6' } },
+        tooltip: {
+          callbacks: {
+            label: function(c) {
+              return `${c.dataset.data[c.dataIndex].label || ''}: (Dur: ${c.parsed.x.toFixed(2)}, TIR: ${c.parsed.y.toFixed(2)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+        
+        function openPizarraModal() { 
+          document.getElementById('modalPizarra').classList.add('visible'); 
+          const listContainer = document.getElementById('pizarra-assets-list'); 
+          listContainer.innerHTML = ''; 
+          allData.bonos
+            .filter(b => b.hasFlow)
+            .sort((a,b) => a.tickerUSD.localeCompare(b.tickerUSD))
+            .forEach(bono => { 
+              const assetDiv = document.createElement('div'); 
+              assetDiv.className = 'pizarra-asset'; 
+              assetDiv.innerHTML = `<label for="pizarra-${bono.tickerUSD}">${bono.tickerUSD}</label><input type="number" id="pizarra-${bono.tickerUSD}" data-ticker="${bono.tickerUSD}" value="${bono.nominalesUSD || 0}">`; 
+              listContainer.appendChild(assetDiv); 
+            }); 
+          
+          document.getElementById('btn-reset-pizarra').addEventListener('click', () => {
+            document.querySelectorAll('#pizarra-assets-list input').forEach(input => {
+              const bono = allData.bonos.find(b => b.tickerUSD === input.dataset.ticker);
+              if (bono) input.value = bono.nominalesUSD || 0;
+            });
+            calculatePizarraMetrics();
+          });
+
+          document.getElementById('pizarra-assets-list').addEventListener('input', calculatePizarraMetrics); 
+          calculatePizarraMetrics(); 
+        }
+        
+        function calculatePizarraMetrics() { 
+          let totalValue = 0, sumTir = 0, sumDur = 0;
+          const posiciones = [];
+
+          document.querySelectorAll('#pizarra-assets-list input').forEach(input => { 
+            const nominales = parseFloat(input.value) || 0; 
+            if (nominales > 0) { 
+              const ticker = input.dataset.ticker; 
+              const bono = allData.bonos.find(b => b.tickerUSD === ticker); 
+              if (bono && bono.precioUSD > 0) { 
+                const positionValue = (nominales * bono.precioUSD) / 100; 
+                totalValue += positionValue; 
+                if (typeof bono.tirUSD === 'number') sumTir += bono.tirUSD * positionValue; 
+                if (typeof bono.modifiedDurationUSD === 'number') sumDur += bono.modifiedDurationUSD * positionValue;
+                posiciones.push({ ticker, nominales, bono, positionValue });
+              } 
+            } 
+          }); 
+
+          const tirFinal = totalValue > 0 ? sumTir / totalValue : 0;
+          const durFinal = totalValue > 0 ? sumDur / totalValue : 0;
+
+          document.getElementById('pizarra-total-value').textContent = `$ ${formatLargeNumber(totalValue, 2)}`; 
+          document.getElementById('pizarra-weighted-tir').textContent = `${formatNumber(tirFinal)} %`; 
+          document.getElementById('pizarra-weighted-dur').textContent = formatNumber(durFinal);
+
+          const realTir = allData.globalMetrics.weightedTirUSD;
+          const realDur = allData.globalMetrics.weightedDurationUSD;
+          const deltaTir = tirFinal - realTir;
+          const deltaDur = durFinal - realDur;
+
+          const tirDeltaEl = document.getElementById('pizarra-tir-delta');
+          const durDeltaEl = document.getElementById('pizarra-dur-delta');
+          if (tirDeltaEl) {
+            tirDeltaEl.textContent = `vs real: ${deltaTir >= 0 ? '+' : ''}${formatNumber(deltaTir)} pp`;
+            tirDeltaEl.style.color = deltaTir >= 0 ? 'var(--positive)' : 'var(--negative)';
+          }
+          if (durDeltaEl) {
+            durDeltaEl.textContent = `vs real: ${deltaDur >= 0 ? '+' : ''}${formatNumber(deltaDur)} años`;
+            durDeltaEl.style.color = deltaDur >= 0 ? 'var(--gold)' : 'var(--slate)';
+          }
+
+          const tbody = document.getElementById('pizarra-desglose-body');
+          if (tbody) {
+            tbody.innerHTML = '';
+            posiciones.sort((a, b) => b.positionValue - a.positionValue).forEach(p => {
+              const pctCartera = totalValue > 0 ? (p.positionValue / totalValue) * 100 : 0;
+              const row = document.createElement('tr');
+              row.innerHTML = `
+                <td>${p.ticker}</td>
+                <td class="text-right">${formatLargeNumber(p.nominales)}</td>
+                <td class="text-right">${formatNumber(p.bono.tirUSD)}%</td>
+                <td class="text-right">${formatNumber(p.bono.modifiedDurationUSD)}</td>
+                <td class="text-right">${formatNumber(pctCartera, 1)}%</td>`;
+              tbody.appendChild(row);
+            });
+          }
+        }
+
+        // --- ARBITRADOR ---
+        function populateArbitrageSelects() {
+          const selects = ['arb-sell-ticker', 'arb-buy-1', 'arb-buy-2', 'arb-buy-3'];
+          const priceInputs = {
+            'arb-sell-ticker': 'arb-sell-price',
+            'arb-buy-1': 'arb-buy-1-price',
+            'arb-buy-2': 'arb-buy-2-price',
+            'arb-buy-3': 'arb-buy-3-price'
+          };
+
+          const options = allData.bonos
+            .filter(b => b.precioUSD > 0 || (b.tickerUSD && b.tipo))
+            .sort((a, b) => a.tickerUSD.localeCompare(b.tickerUSD))
+            .map(b => `<option value="${b.tickerUSD}">${b.tickerUSD}</option>`)
+            .join('');
+            
+          selects.forEach(id => {
+            const el = document.getElementById(id);
+            el.innerHTML = options;
+            el.addEventListener('change', () => {
+              const ticker = el.value;
+              const bono = allData.bonos.find(b => b.tickerUSD === ticker);
+              const inputId = priceInputs[id];
+              if(bono && document.getElementById(inputId)) {
+                 document.getElementById(inputId).value = bono.precioUSD || 0;
+              }
+            });
+            el.dispatchEvent(new Event('change'));
+          });
+
+          document.getElementById('btn-calcular-arb').addEventListener('click', calculateArbitrage);
+        }
+
+        function calculateArbitrage() {
+          const sellTicker = document.getElementById('arb-sell-ticker').value;
+          const sellQty = parseFloat(document.getElementById('arb-sell-qty').value);
+          const commPct = parseFloat(document.getElementById('arb-comm').value) / 100;
+          const sellPrice = parseFloat(document.getElementById('arb-sell-price').value) || 0;
+          
+          const buyConfigs = [
+            { ticker: document.getElementById('arb-buy-1').value, priceInput: 'arb-buy-1-price' },
+            { ticker: document.getElementById('arb-buy-2').value, priceInput: 'arb-buy-2-price' },
+            { ticker: document.getElementById('arb-buy-3').value, priceInput: 'arb-buy-3-price' }
+          ];
+
+          const sourceBond = allData.bonos.find(b => b.tickerUSD === sellTicker);
+          if (!sourceBond) return;
+          
+          const grossSellAmount = sellQty * sellPrice / 100;
+          const sellComm = grossSellAmount * commPct;
+          const netCash = grossSellAmount - sellComm;
+
+          const thead = document.getElementById('arb-table-head');
+          thead.innerHTML = `<tr><th>Métrica</th><th>${sellTicker} (Origen @ $${sellPrice})</th>
+                             <th>${buyConfigs[0].ticker}</th><th>${buyConfigs[1].ticker}</th><th>${buyConfigs[2].ticker}</th></tr>`;
+
+          let rowNominals = `<td>Nominales Resultantes</td><td>${formatLargeNumber(sellQty)}</td>`;
+          let rowTIR = `<td>TIR Anual (%)</td><td>${formatNumber(sourceBond.tirUSD)}%</td>`;
+          let rowSpreadTir = `<td>Spread de Tasa (bps)</td><td>-</td>`; 
+          let rowDuration = `<td>Duración (Años)</td><td>${formatNumber(sourceBond.modifiedDurationUSD)}</td>`;
+          let rowSpreadDur = `<td>Spread Duración</td><td>-</td>`; 
+          let rowParity = `<td>Paridad (%)</td><td>${formatNumber(sourceBond.valorResidual ? (sellPrice/sourceBond.valorResidual)*100 : 0, 1)}%</td>`;
+          let rowRecupero = `<td>Tiempo de Recupero</td><td>-</td>`;
+
+          let valsNominals = [sellQty]; 
+
+          const approxBuyComm = netCash * commPct;
+          const totalCommShow = sellComm + approxBuyComm;
+          document.getElementById('arb-total-cost').innerHTML = `<span style="color:var(--negative)">$ ${formatNumber(totalCommShow, 2)}</span>`;
+
+          buyConfigs.forEach(cfg => {
+            const destBond = allData.bonos.find(b => b.tickerUSD === cfg.ticker);
+            const buyPrice = parseFloat(document.getElementById(cfg.priceInput).value) || 0;
+            
+            if(destBond && buyPrice > 0) {
+              const buyPriceAdjusted = (buyPrice / 100) * (1 + commPct);
+              const newNominals = netCash / buyPriceAdjusted; 
+              
+              const spreadTir = (destBond.tirUSD - sourceBond.tirUSD) * 100;
+              const spreadDur = destBond.modifiedDurationUSD - sourceBond.modifiedDurationUSD;
+              const parity = destBond.valorResidual ? (buyPrice / destBond.valorResidual)*100 : 0;
+
+              let recuperoText = 'Nunca';
+              
+              if (destBond.tirUSD > sourceBond.tirUSD) {
+                 const rOld = sourceBond.tirUSD / 100;
+                 const rNew = destBond.tirUSD / 100;
+                 const grossCapital = grossSellAmount;
+                 const netInvested = netCash / (1 + commPct);
+                 
+                 const numerator = Math.log(grossCapital / netInvested);
+                 const denominator = Math.log((1 + rNew) / (1 + rOld));
+                 
+                 if (denominator > 0) {
+                   const years = numerator / denominator;
+                   if (years < 1) {
+                     recuperoText = `<span style="color:var(--positive); font-weight:bold;">${(years * 12).toFixed(1)} Meses</span>`;
+                   } else {
+                     recuperoText = `${years.toFixed(1)} Años`;
+                   }
+                 }
+              } else if (Math.abs(destBond.tirUSD - sourceBond.tirUSD) < 0.01) {
+                 recuperoText = 'Indefinido';
+              }
+
+              rowNominals += `<td class="res-nominal"><b>${formatLargeNumber(newNominals)}</b></td>`;
+              rowTIR += `<td>${formatNumber(destBond.tirUSD)}%</td>`;
+              
+              const spreadClass = spreadTir > 0 ? 'var-positive' : (spreadTir < -20 ? 'var-negative' : '');
+              const spreadSign = spreadTir > 0 ? '+' : '';
+              rowSpreadTir += `<td class="${spreadClass}"><b>${spreadSign}${formatNumber(spreadTir, 0)} bps</b></td>`;
+
+              rowDuration += `<td>${formatNumber(destBond.modifiedDurationUSD)}</td>`;
+              const spreadDurSign = spreadDur > 0 ? '+' : '';
+              rowSpreadDur += `<td>${spreadDurSign}${formatNumber(spreadDur, 2)}</td>`;
+              
+              rowParity += `<td>${formatNumber(parity, 1)}%</td>`;
+              rowRecupero += `<td>${recuperoText}</td>`;
+              valsNominals.push(newNominals);
+              
+            } else {
+              rowNominals += `<td>-</td>`; rowTIR += `<td>-</td>`; rowSpreadTir += `<td>-</td>`;
+              rowDuration += `<td>-</td>`; rowSpreadDur += `<td>-</td>`; rowParity += `<td>-</td>`; rowRecupero += `<td>-</td>`;
+              valsNominals.push(-1);
+            }
+          });
+
+          const tbody = document.getElementById('arb-table-body');
+          tbody.innerHTML = `<tr>${rowNominals}</tr>
+                             <tr>${rowSpreadTir}</tr>
+                             <tr>${rowRecupero}</tr>
+                             <tr>${rowTIR}</tr>
+                             <tr>${rowSpreadDur}</tr>
+                             <tr>${rowDuration}</tr>
+                             <tr>${rowParity}</tr>`;
+          
+          document.getElementById('arb-results-container').style.display = 'block';
+
+          const rows = tbody.querySelectorAll('tr');
+          let maxNom = Math.max(...valsNominals);
+          if(maxNom > 0) {
+             rows[0].querySelectorAll('td').forEach((td, idx) => { 
+                if(idx > 0 && valsNominals[idx-1] === maxNom) td.classList.add('cell-winner'); 
+             });
+          }
+
+          const spreadsValidos = buyConfigs.map(cfg => {
+             const destBond = allData.bonos.find(b => b.tickerUSD === cfg.ticker);
+             const buyPrice = parseFloat(document.getElementById(cfg.priceInput).value) || 0;
+             if (destBond && buyPrice > 0 && typeof destBond.tirUSD === 'number') {
+                return destBond.tirUSD - sourceBond.tirUSD;
+             }
+             return -Infinity;
+          });
+          const maxSpread = Math.max(...spreadsValidos);
+
+          if (maxSpread > -Infinity) {
+             const idxGanador = spreadsValidos.indexOf(maxSpread);
+             const colGanadora = idxGanador + 2;
+
+             if (rows[1].querySelectorAll('td')[colGanadora]) rows[1].querySelectorAll('td')[colGanadora].classList.add('cell-winner');
+             if (rows[3].querySelectorAll('td')[colGanadora]) rows[3].querySelectorAll('td')[colGanadora].classList.add('cell-winner');
+          }
+        }
+
+        fetchData();
+      });
+    </script>
+  </body>
+</html>
