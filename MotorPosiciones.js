@@ -243,23 +243,28 @@ function snapshotAFecha(logSinHeader, fechaCorte) {
 
 
 // ---------------------------------------------------------------------------------
-// 3. "¿QUÉ PASÓ, TRANSACCIÓN POR TRANSACCIÓN, Y CUÁNTO GANÉ REALIZADO POR AÑO?"
+// 2. "¿CUÁNTO TENÍA DE CADA COSA A TAL FECHA?"
 // ---------------------------------------------------------------------------------
-// Recorre TODO el Log aplicando aplicarMovimiento(), y además de la posición
-// final guarda el detalle de cada transacción y los totales agrupados por año.
+// Recorre el Log aplicando aplicarMovimiento() a cada fila hasta (e incluyendo)
+// fechaCorte, y devuelve la posición de cada ticker en ese momento.
 //
-// Reemplaza en el futuro (Paso 3):
-//   - las estadísticas de dividendos/renta de generarDatosMaestros()
-//   - el loop completo de GENERAR_AUDITORIA_COMPLETA() (que hoy arma su propio
-//     transDetalle y gciaPorAnio)
+// Reemplaza en el futuro (Paso 3, uno por uno, con validación previa):
+//   - calcularCantidadesNetas()          -> snapshotAFecha(log, HOY)
+//   - el mini-loop de calcularRendimientoLimpioYTD() (tenenciasCorte) -> snapshotAFecha(log, fechaDeCorteQueYaUsa)
+//   - el inventario de GENERAR_INFORME_BIENES_PERSONALES() -> snapshotAFecha(log, 31/12 23:59:59 del año fiscal elegido)
 //
-// @param {Array} logSinHeader  Filas del Log SIN header, ya ordenadas por fecha.
-// @return {Object} {
-//   posiciones:    posición final de cada ticker a la fecha del último movimiento,
-//   transacciones: [ { fecha, ticker, tipo, movimiento, montoUSD, gananciaRealizada, anio } ],
-//   statsPorAnio:  { anio: { gciaCapRV, gciaCapRF, divRV, rentaRF, amortizRF } },
-//   advertencias:  [ { ticker, fecha, mensaje } ]
-// }
+// USD/CASH queda EXCLUIDO de las posiciones (igual que en todo el sistema hoy) —
+// la caja se calcula aparte con calcularCajaVirtual(). Fiscal.gs, que necesita
+// el monto de USD/CASH para su propio reporte, lo sigue resolviendo con su
+// propia lógica de caja, por fuera de este motor.
+//
+// @param {Array} logSinHeader  Filas del Log SIN el header, YA ordenadas por
+//                                fecha ascendente (igual que hace hoy cada
+//                                consumidor antes de procesar).
+// @param {Date}  fechaCorte    Fecha límite inclusive. Para "hoy" pasar HOY_SIMULADA.
+//                                Para Fiscal, pasar new Date(anioFiscal, 11, 31, 23, 59, 59).
+// @return {Object} { posiciones: { TICKER: {q, costo, costoOriginal, cobrado, wDate, tipo} },
+//                     advertencias: [ { ticker, fecha, mensaje } ] }
 //
 function ledgerCompleto(logSinHeader) {
     let posiciones = {};
