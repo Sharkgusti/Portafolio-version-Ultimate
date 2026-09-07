@@ -514,13 +514,19 @@ function calcularRendimientoLimpioYTD(logSinHeader, portfolio, precios, ccl, hoy
             retAbsolutoTotal: 0, retAbsolutoVariable: 0, retAbsolutoFija: 0, gananciaNetaTotalUSD: 0
         };
     }
-
-    let tenenciasCorte = {};
     let aporteNetoUSD = 0;
     let comprasNetasRV = 0;
     let comprasNetasRF = 0;
 
-    // Map last transaction prices before cutoff as fallback
+    // =============================================================================
+    // PASO 3.3 de la consolidación (ver debate "Portafolio Ultimate"): la
+    // tenencia a la fecha de corte (tenenciasCorte) ya NO se calcula con un
+    // mini-loop propio — sale de snapshotAFecha() (MotorPosiciones.gs), que
+    // aplica las mismas reglas que el resto del motor (Método B, tope de
+    // venta, venta sin stock previo). El tracking de ultimoPrecioUSD se
+    // mantiene igual: es lógica de PRECIOS (fallback cuando no hay histórico
+    // al corte), no de posiciones, y no pertenece al motor de posiciones.
+    // =============================================================================
     let ultimoPrecioUSD = {};
 
     logSinHeader.forEach(row => {
@@ -529,10 +535,6 @@ function calcularRendimientoLimpioYTD(logSinHeader, portfolio, precios, ccl, hoy
         if (isNaN(fechaObj.getTime())) return;
 
         const ticker = String(row[3]).toUpperCase().trim();
-        const tipoStr = String(row[4]);
-        const mov = String(row[5]).toLowerCase().trim();
-        const cant = cleanNum(row[6]);
-        const ratioSplit = cleanNum(row[11]);
         const pxOrig = cleanNum(row[7]);
         const tc = cleanNum(row[9]) || 1;
         const monOrig = String(row[8] || "").toUpperCase().trim();
@@ -543,20 +545,14 @@ function calcularRendimientoLimpioYTD(logSinHeader, portfolio, precios, ccl, hoy
         if (monOrig === 'USD') pxUSD = pxOrig;
         else if (monOrig === 'ARS' || monOrig === 'PESOS') pxUSD = pxOrig / tc;
         if (pxUSD > 0) ultimoPrecioUSD[ticker] = pxUSD;
-
-        if (!tenenciasCorte[ticker]) tenenciasCorte[ticker] = { q: 0, tipo: tipoStr };
-
-        if (fechaObj.getTime() <= fechaCorteMs) {
-            if (mov.includes('compra') || mov.includes('aporte') || mov.includes('suscrip') || mov.includes('canje_entrada')) {
-                tenenciasCorte[ticker].q += cant;
-            } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-                tenenciasCorte[ticker].q -= cant;
-            } else if (mov.includes('split')) {
-                if (ratioSplit > 0 && tenenciasCorte[ticker].q > 0) tenenciasCorte[ticker].q *= ratioSplit;
-            }
-        }
     });
 
+    const snapshotCorte = snapshotAFecha(logSinHeader, FECHA_CORTE);
+    let tenenciasCorte = {};
+    Object.keys(snapshotCorte.posiciones).forEach(tk => {
+        tenenciasCorte[tk] = { q: snapshotCorte.posiciones[tk].q, tipo: snapshotCorte.posiciones[tk].tipo };
+    });
+    
     const buscarPrecioAlCorte = (tk) => {
         if (!hPreciosCompleto || !hPreciosCompleto[tk]) return null;
         const list = hPreciosCompleto[tk];
