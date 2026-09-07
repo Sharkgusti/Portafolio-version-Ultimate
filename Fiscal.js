@@ -170,50 +170,54 @@ function GENERAR_INFORME_BIENES_PERSONALES() {
   if (!logSheet) { ui.alert('❌ Error: No se encuentra Log_Transacciones_TITANIUM.'); return; }
 
   const logData = logSheet.getDataRange().getValues();
-  const inventario = {}; // { ticker: { qty, tipo, moneda } }
+  const logSinHeader = logData.slice(1);
+  logSinHeader.sort((a, b) => new Date(a[1]) - new Date(b[1]));
 
-  for (let i = 1; i < logData.length; i++) {
-    const row  = logData[i];
+  // =============================================================================
+  // PASO 3.6 de la consolidación (ver debate "Portafolio Ultimate"): la
+  // tenencia de instrumentos de bróker al 31/12 del año fiscal sale de
+  // snapshotAFecha() (MotorPosiciones.gs), con el mismo corte histórico que
+  // ya usaba este informe — soporta cualquier año pasado, no solo el actual.
+  // USD/CASH se sigue calculando aparte, con su propia lógica de caja (FIX:
+  // lee Monto_Neto_USD, no Unidades) — ese caso especial nunca formó parte
+  // del motor genérico, a propósito, desde el diseño original de esta
+  // consolidación (el motor excluye USD/CASH de sus posiciones siempre).
+  // =============================================================================
+  const snapshotCorte = snapshotAFecha(logSinHeader, fechaCorte);
+  const inventario = {}; // { ticker: { qty, tipo } }
+
+  Object.keys(snapshotCorte.posiciones).forEach(tk => {
+    const p = snapshotCorte.posiciones[tk];
+    inventario[tk] = { qty: p.q, tipo: p.tipo };
+  });
+
+  let cajaPorTicker = {};
+  let tipoPorTickerCaja = {};
+  for (let i = 0; i < logSinHeader.length; i++) {
+    const row = logSinHeader[i];
     const fecha = new Date(row[1]);
     if (!(fecha instanceof Date) || isNaN(fecha) || fecha > fechaCorte) continue;
 
-    const ticker  = String(row[3]).toUpperCase().trim();
-    const tipoStr = String(row[4]);
-    const mov     = String(row[5]).toLowerCase().trim();
-    const cant    = cleanNum(row[6]);
-    const montoUSD = Math.abs(cleanNum(row[10])); // Monto_Neto_USD, columna K (índice 10)
+    const ticker = String(row[3]).toUpperCase().trim();
+    if (ticker !== 'USD' && ticker !== 'CASH') continue;
 
-    const colH = String(row[7]).toUpperCase().trim();
-    const colI = String(row[8]).toUpperCase().trim();
-    const moneda = (colH === 'USD' || colI === 'USD') ? 'USD' : 'ARS';
+    const mov = String(row[5]).toLowerCase().trim();
+    const montoUSD = Math.abs(cleanNum(row[10]));
 
-    if (!ticker) continue;
-    if (!inventario[ticker]) inventario[ticker] = { qty: 0, tipo: tipoStr, moneda };
-
-    // =================================================================
-    // FIX: para USD/CASH, la "cantidad" que importa es el monto en USD
-    // (columna K), NO las Unidades (columna G) — que quedan vacías
-    // cuando el aporte se cargó en pesos.
-    // =================================================================
-    if (ticker === 'USD' || ticker === 'CASH') {
-      if (mov.includes('aporte') || mov.includes('compra') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
-        inventario[ticker].qty += montoUSD;
-      } else if (mov.includes('retiro') || mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-        inventario[ticker].qty -= montoUSD;
-      }
-      continue;
+    if (cajaPorTicker[ticker] === undefined) {
+      cajaPorTicker[ticker] = 0;
+      tipoPorTickerCaja[ticker] = String(row[4]);
     }
 
-    // Resto de los activos: se mantiene la lógica original (Unidades)
-    if (mov.includes('compra') || mov.includes('aporte') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
-      inventario[ticker].qty += cant;
-    } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-      inventario[ticker].qty -= cant;
-    } else if (mov.includes('split')) {
-      const ratio = cleanNum(row[11]);
-      if (ratio > 0) inventario[ticker].qty *= ratio;
+    if (mov.includes('aporte') || mov.includes('compra') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
+      cajaPorTicker[ticker] += montoUSD;
+    } else if (mov.includes('retiro') || mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
+      cajaPorTicker[ticker] -= montoUSD;
     }
   }
+  Object.keys(cajaPorTicker).forEach(tk => {
+    inventario[tk] = { qty: cajaPorTicker[tk], tipo: tipoPorTickerCaja[tk] };
+  });
 
   // ── 5. FALLBACK — Historico_Precios ───────────────────────────────
   const histSheet = ss.getSheetByName('Historico_Precios');

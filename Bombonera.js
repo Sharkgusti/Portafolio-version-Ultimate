@@ -4,14 +4,6 @@
 // calcularCantidadesNetas() de Motor.gs (tenencia real automática desde el Log)
 // =========================================================================
 
-function doGetBombonera() {
-  const template = HtmlService.createTemplateFromFile('IndexBombonera');
-  template.cacheBuster = new Date().getTime();
-  return template.evaluate()
-      .setTitle("La Bombonera Digital del Contadore")
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT);
-}
-
 function getSettlementDateBombonera(startDate) {
   let settlementDate = new Date(startDate);
   let daysToAdd = 1; // T+1

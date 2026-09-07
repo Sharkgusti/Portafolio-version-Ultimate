@@ -65,170 +65,146 @@ function generarDatosMaestros() {
         if (tk && pr > 0) precios[tk] = { precio: pr, var: vr, moneda: moneda };
     }
 
-    let portfolio = {};
-    let realizedPL_RV = 0;
-    let cfRV = [], cfRF = [], cfTOTAL = [];
-    let cashflowsPorTicker = {};
-
-    let statsDivs = { tickers: {}, years: {}, total: 0 };
-    let statsRenta = { tickers: {}, years: {}, total: 0 };
-    let rentaHistorica12m = {};
-    let fechaHaceUnAnio = new Date(); fechaHaceUnAnio.setFullYear(fechaHaceUnAnio.getFullYear() - 1);
-
-    let totalCostoVivoRF = 0;
-    let costoEventsRF = [];
-    let gananciaRealizadaPorTickerAnio = {};
-
     const logSinHeader = logData.slice(1);
     logSinHeader.sort((a, b) => new Date(a[1]) - new Date(b[1]));
 
     let cajaVirtual = calcularCajaVirtual(logSinHeader);
 
+    // =============================================================================
+    // PASO 3.4 de la consolidación (ver debate "Portafolio Ultimate"): el motor
+    // principal del Dashboard ya NO reimplementa el loop de posiciones. La
+    // posición de HOY sale de snapshotAFecha() y todo el detalle histórico
+    // (cashflows, ganancias realizadas, dividendos, renta, Modified Dietz) se
+    // deriva de ledgerCompleto() — ambas en MotorPosiciones.gs. Ninguna regla
+    // de negocio cambia acá: Método B, tope de venta y venta-sin-stock siguen
+    // siendo exactamente las mismas que ya vienen aplicando desde el Paso 3.1.
+    // =============================================================================
+    const snapshotHoy = snapshotAFecha(logSinHeader, HOY_SIMULADA);
+    const ledger = ledgerCompleto(logSinHeader);
+    let portfolio = snapshotHoy.posiciones;
+
+    const esRVporTipo = (tipoStr) => String(tipoStr).toLowerCase().includes('cedear') || String(tipoStr).toLowerCase().includes('accion');
+
+    // --- Clasificación auxiliar: tickers con renta/dividendo explícito en su historia ---
     let tickersConRentaExplicita = new Set();
-    logSinHeader.forEach(row => {
-        const tk = String(row[3]).toUpperCase().trim();
-        const mv = String(row[5]).toLowerCase().trim();
-        if (tk && (mv.includes('dividendo') || mv.includes('renta') || mv.includes('interes'))) {
-            tickersConRentaExplicita.add(tk);
+    ledger.transacciones.forEach(t => {
+        if (t.movimiento.includes('dividendo') || t.movimiento.includes('renta') || t.movimiento.includes('interes')) {
+            tickersConRentaExplicita.add(t.ticker);
         }
     });
-    let unitEventsPorTicker = {};
 
-    for (let i = 0; i < logSinHeader.length; i++) {
-        const row = logSinHeader[i];
-        const fecha = new Date(row[1]);
-        const year = fecha.getFullYear();
-        const ticker = String(row[3]).toUpperCase().trim();
-        const tipoStr = String(row[4]);
-        const mov = String(row[5]).toLowerCase().trim();
-        const cant = cleanNum(row[6]);
-        const montoUSD = Math.abs(cleanNum(row[10]));
-        const ratioSplit = cleanNum(row[11]);
+    // --- Derivación 1: cashflows agrupados (RV / RF / Total) y por ticker, + ganancia realizada RV ---
+    let cfRV = [], cfRF = [], cfTOTAL = [];
+    let cashflowsPorTicker = {};
+    let realizedPL_RV = 0;
 
-        if (!ticker) continue;
-        if (ticker === 'USD' || ticker === 'CASH') continue;
+    ledger.transacciones.forEach(t => {
+        const esRV = esRVporTipo(t.tipo);
+        if (!cashflowsPorTicker[t.ticker]) cashflowsPorTicker[t.ticker] = [];
 
-        if (!portfolio[ticker]) portfolio[ticker] = { q: 0, costo: 0, costoOriginal: 0, tipo: tipoStr, cobrado: 0, wDate: null };
-        if (!cashflowsPorTicker[ticker]) cashflowsPorTicker[ticker] = [];
-        if (!unitEventsPorTicker[ticker]) unitEventsPorTicker[ticker] = [];
-        let p = portfolio[ticker];
+        if (t.cashflow) {
+            cfTOTAL.push({ d: t.fecha, v: t.cashflow });
+            if (esRV) cfRV.push({ d: t.fecha, v: t.cashflow });
+            else cfRF.push({ d: t.fecha, v: t.cashflow });
+            cashflowsPorTicker[t.ticker].push({ d: t.fecha, v: t.cashflow });
+        }
 
-        const esRV = tipoStr.toLowerCase().includes('cedear') || tipoStr.toLowerCase().includes('accion');
-        const esRF = !esRV;
+        const esVentaLike = t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('canje_salida');
+        const esRentaLike = t.movimiento.includes('dividendo') || t.movimiento.includes('renta') || t.movimiento.includes('interes');
+        if (esRV && (esVentaLike || esRentaLike)) {
+            realizedPL_RV += t.gananciaRealizada;
+        }
+    });
 
-        if (mov.includes('compra') || mov.includes('aporte') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
-            let fechaMs = fecha.getTime();
-            if (p.q <= 0 || !p.wDate) p.wDate = fechaMs;
-            else p.wDate = ((p.q * p.wDate) + (cant * fechaMs)) / (p.q + cant);
+    // --- Derivación 2: estadísticas de dividendos/renta por ticker y por año, y
+    //     ganancia realizada por ticker/año (misma lógica de negocio de siempre,
+    //     incluida la regla de tickersConRentaExplicita para la ganancia extra
+    //     de amortización, y el FIX que suma esa ganancia extra a
+    //     gananciaRealizadaPorTickerAnio SIEMPRE, sea o no cupón explícito). ---
+    let statsDivs = { tickers: {}, years: {}, total: 0 };
+    let statsRenta = { tickers: {}, years: {}, total: 0 };
+    let gananciaRealizadaPorTickerAnio = {};
+    let fechaHaceUnAnio = new Date(); fechaHaceUnAnio.setFullYear(fechaHaceUnAnio.getFullYear() - 1);
+    let rentaHistorica12m = {};
 
-            p.q += cant;
-            p.costo += montoUSD;
-            p.costoOriginal += montoUSD;
-            unitEventsPorTicker[ticker].push({ d: fecha, q: p.q });
-            if (esRV) cfRV.push({ d: fecha, v: -montoUSD });
-            if (esRF) cfRF.push({ d: fecha, v: -montoUSD });
-            cfTOTAL.push({ d: fecha, v: -montoUSD });
-            cashflowsPorTicker[ticker].push({ d: fecha, v: -montoUSD });
+    ledger.transacciones.forEach(t => {
+        const year = t.anio;
+        const esRF = !esRVporTipo(t.tipo);
 
-            if (esRF) {
-                totalCostoVivoRF += montoUSD;
-                costoEventsRF.push({ d: fecha, c: totalCostoVivoRF });
-            }
+        if (t.movimiento.includes('dividendo')) {
+            statsDivs.tickers[t.ticker] = (statsDivs.tickers[t.ticker] || 0) + t.montoUSD;
+            statsDivs.years[year] = (statsDivs.years[year] || 0) + t.montoUSD;
+            statsDivs.total += t.montoUSD;
+            if (t.fecha >= fechaHaceUnAnio) rentaHistorica12m[t.ticker] = (rentaHistorica12m[t.ticker] || 0) + t.montoUSD;
 
-        } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-            if (p.q > 0) {
-                let ppc = p.costo / p.q;
-                let ppcOriginal = p.costoOriginal / p.q;
-                let costoVenta = ppc * cant;
-                let costoOriginalVenta = ppcOriginal * cant;
-                let ganancia = montoUSD - costoVenta;
+        } else if (t.movimiento.includes('renta') || t.movimiento.includes('interes')) {
+            statsRenta.tickers[t.ticker] = (statsRenta.tickers[t.ticker] || 0) + t.montoUSD;
+            statsRenta.years[year] = (statsRenta.years[year] || 0) + t.montoUSD;
+            statsRenta.total += t.montoUSD;
+            if (t.fecha >= fechaHaceUnAnio) rentaHistorica12m[t.ticker] = (rentaHistorica12m[t.ticker] || 0) + t.montoUSD;
 
-                if (esRV) realizedPL_RV += ganancia;
-                if (esRF && !tickersConRentaExplicita.has(ticker)) {
-                    if (!gananciaRealizadaPorTickerAnio[ticker]) gananciaRealizadaPorTickerAnio[ticker] = {};
-                    gananciaRealizadaPorTickerAnio[ticker][year] = (gananciaRealizadaPorTickerAnio[ticker][year] || 0) + ganancia;
+            if (!gananciaRealizadaPorTickerAnio[t.ticker]) gananciaRealizadaPorTickerAnio[t.ticker] = {};
+            gananciaRealizadaPorTickerAnio[t.ticker][year] = (gananciaRealizadaPorTickerAnio[t.ticker][year] || 0) + t.montoUSD;
+
+        } else if (t.movimiento.includes('amortiza')) {
+            if (t.gananciaRealizada > 0) {
+                if (tickersConRentaExplicita.has(t.ticker)) {
+                    statsRenta.tickers[t.ticker] = (statsRenta.tickers[t.ticker] || 0) + t.gananciaRealizada;
+                    statsRenta.years[year] = (statsRenta.years[year] || 0) + t.gananciaRealizada;
+                    statsRenta.total += t.gananciaRealizada;
                 }
-                p.q -= cant;
-                p.costo -= costoVenta;
-                p.costoOriginal -= costoOriginalVenta;
-                if (p.q < 0.0001) { p.q = 0; p.costo = 0; p.costoOriginal = 0; }
-                unitEventsPorTicker[ticker].push({ d: fecha, q: p.q });
-
-                if (esRV) cfRV.push({ d: fecha, v: montoUSD });
-                if (esRF) cfRF.push({ d: fecha, v: montoUSD });
-                cfTOTAL.push({ d: fecha, v: montoUSD });
-                cashflowsPorTicker[ticker].push({ d: fecha, v: montoUSD });
-
-                if (esRF) {
-                    totalCostoVivoRF -= costoVenta;
-                    costoEventsRF.push({ d: fecha, c: totalCostoVivoRF });
-                }
+                // FIX (preservado del sistema anterior): esto va SIEMPRE, sea o no
+                // un ticker con cupón explícito — es plata ya cobrada en efectivo
+                // (Realizada), sin importar a qué bucket del total termine yendo.
+                if (!gananciaRealizadaPorTickerAnio[t.ticker]) gananciaRealizadaPorTickerAnio[t.ticker] = {};
+                gananciaRealizadaPorTickerAnio[t.ticker][year] = (gananciaRealizadaPorTickerAnio[t.ticker][year] || 0) + t.gananciaRealizada;
             }
 
-        } else if (mov.includes('dividendo') || mov.includes('renta') || mov.includes('interes')) {
-            if (esRV) { realizedPL_RV += montoUSD; cfRV.push({ d: fecha, v: montoUSD }); }
-            if (esRF) cfRF.push({ d: fecha, v: montoUSD });
-            cfTOTAL.push({ d: fecha, v: montoUSD });
-            cashflowsPorTicker[ticker].push({ d: fecha, v: montoUSD });
-            p.cobrado += montoUSD;
-
-            if (fecha >= fechaHaceUnAnio) rentaHistorica12m[ticker] = (rentaHistorica12m[ticker] || 0) + montoUSD;
-
-            if (mov.includes('dividendo')) {
-                statsDivs.tickers[ticker] = (statsDivs.tickers[ticker] || 0) + montoUSD;
-                statsDivs.years[year] = (statsDivs.years[year] || 0) + montoUSD;
-                statsDivs.total += montoUSD;
-            } else {
-                statsRenta.tickers[ticker] = (statsRenta.tickers[ticker] || 0) + montoUSD;
-                statsRenta.years[year] = (statsRenta.years[year] || 0) + montoUSD;
-                statsRenta.total += montoUSD;
-                if (!gananciaRealizadaPorTickerAnio[ticker]) gananciaRealizadaPorTickerAnio[ticker] = {};
-                gananciaRealizadaPorTickerAnio[ticker][year] = (gananciaRealizadaPorTickerAnio[ticker][year] || 0) + montoUSD;
-            }
-
-        } else if (mov.includes('amortiza')) {
-            p.cobrado += montoUSD;
-            let reduccionCostoRF = Math.min(montoUSD, p.costo);
-            if (montoUSD > p.costo) {
-                let gananciaExtra = montoUSD - p.costo;
-                p.costo = 0;
-                // Si el ticker tiene cupón explícito, sumamos directo (como siempre).
-                // Si NO lo tiene (silencioso), el Modified Dietz de más abajo ya
-                // captura este efecto vía "rescatesAnio" — sumarlo acá también sería duplicarlo.
-                if (tickersConRentaExplicita.has(ticker)) {
-                    statsRenta.tickers[ticker] = (statsRenta.tickers[ticker] || 0) + gananciaExtra;
-                    statsRenta.years[year] = (statsRenta.years[year] || 0) + gananciaExtra;
-                    statsRenta.total += gananciaExtra;
-                }
-                // FIX: esto va SIEMPRE, sea o no un ticker con cupón explícito — es plata
-                // ya cobrada en efectivo (Realizada), sin importar a qué bucket del total
-                // (statsRenta directo vs. Modified Dietz) termine yendo.
-                if (!gananciaRealizadaPorTickerAnio[ticker]) gananciaRealizadaPorTickerAnio[ticker] = {};
-                gananciaRealizadaPorTickerAnio[ticker][year] = (gananciaRealizadaPorTickerAnio[ticker][year] || 0) + gananciaExtra;
-            } else {
-                p.costo -= montoUSD;
-            }
-            if (esRF) cfRF.push({ d: fecha, v: montoUSD });
-            cfTOTAL.push({ d: fecha, v: montoUSD });
-            cashflowsPorTicker[ticker].push({ d: fecha, v: montoUSD });
-
-            if (esRF) {
-                totalCostoVivoRF -= reduccionCostoRF;
-                costoEventsRF.push({ d: fecha, c: totalCostoVivoRF });
-            }
-
-        } else if (mov.includes('split')) {
-            if (ratioSplit > 0 && p.q > 0) {
-                p.q = p.q * ratioSplit;
-                unitEventsPorTicker[ticker].push({ d: fecha, q: p.q });
+        } else if (t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('canje_salida')) {
+            if (esRF && !tickersConRentaExplicita.has(t.ticker)) {
+                if (!gananciaRealizadaPorTickerAnio[t.ticker]) gananciaRealizadaPorTickerAnio[t.ticker] = {};
+                gananciaRealizadaPorTickerAnio[t.ticker][year] = (gananciaRealizadaPorTickerAnio[t.ticker][year] || 0) + t.gananciaRealizada;
             }
         }
-    }
+    });
 
+    // --- Derivación 3: costo vivo RF a través del tiempo, para el yield ponderado ---
+    let totalCostoVivoRF = 0;
+    let costoEventsRF = [];
+    let ultimoCostoConocido = {};
+
+    ledger.transacciones.forEach(t => {
+        const esRF = !esRVporTipo(t.tipo);
+        const previo = (ultimoCostoConocido[t.ticker] !== undefined) ? ultimoCostoConocido[t.ticker] : 0;
+        const delta = t.costoDespues - previo;
+        ultimoCostoConocido[t.ticker] = t.costoDespues;
+
+        const esEventoDeCosto = t.movimiento.includes('compra') || t.movimiento.includes('aporte') ||
+            t.movimiento.includes('suscripcion') || t.movimiento.includes('canje_entrada') ||
+            t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('canje_salida') ||
+            t.movimiento.includes('amortiza');
+
+        if (esRF && esEventoDeCosto) {
+            totalCostoVivoRF += delta;
+            costoEventsRF.push({ d: t.fecha, c: totalCostoVivoRF });
+        }
+    });
     costoEventsRF.sort((a, b) => a.d - b.d);
 
     const hPreciosCompleto = leerHistPreciosCompleto(ss.getSheetByName(HOJAS.HIST));
     const hPrecios = submuestrearHistPrecios(hPreciosCompleto, 150);
+
+    // --- Derivación 4: Modified Dietz para bonos/ONs sin cupón explícito ---
+    let unitEventsPorTicker = {};
+    ledger.transacciones.forEach(t => {
+        const esEventoDeUnidades = t.movimiento.includes('compra') || t.movimiento.includes('aporte') ||
+            t.movimiento.includes('suscripcion') || t.movimiento.includes('canje_entrada') ||
+            t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('canje_salida') ||
+            t.movimiento.includes('split');
+        if (!esEventoDeUnidades) return;
+        if (!unitEventsPorTicker[t.ticker]) unitEventsPorTicker[t.ticker] = [];
+        unitEventsPorTicker[t.ticker].push({ d: t.fecha, q: t.qDespues });
+    });
 
     Object.keys(unitEventsPorTicker).forEach(tk => {
         if (tickersConRentaExplicita.has(tk)) return;
@@ -279,17 +255,11 @@ function generarDatosMaestros() {
             const valorFin = unidadesFin * (precioFin || 0);
 
             let comprasAnio = 0, rescatesAnio = 0;
-            for (let i = 0; i < logSinHeader.length; i++) {
-                const rowX = logSinHeader[i];
-                const tkX = String(rowX[3]).toUpperCase().trim();
-                if (tkX !== tk) continue;
-                const fX = new Date(rowX[1]);
-                if (fX.getFullYear() !== anio) continue;
-                const mvX = String(rowX[5]).toLowerCase().trim();
-                const montoX = Math.abs(cleanNum(rowX[10]));
-                if (mvX.includes('compra') || mvX.includes('aporte') || mvX.includes('suscripcion') || mvX.includes('canje_entrada')) comprasAnio += montoX;
-                else if (mvX.includes('venta') || mvX.includes('rescate') || mvX.includes('amortiza') || mvX.includes('canje_salida')) rescatesAnio += montoX;
-            }
+            ledger.transacciones.forEach(t => {
+                if (t.ticker !== tk || t.anio !== anio) return;
+                if (t.movimiento.includes('compra') || t.movimiento.includes('aporte') || t.movimiento.includes('suscripcion') || t.movimiento.includes('canje_entrada')) comprasAnio += t.montoUSD;
+                else if (t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('amortiza') || t.movimiento.includes('canje_salida')) rescatesAnio += t.montoUSD;
+            });
 
             if (unidadesInicio === 0 && unidadesFin === 0 && comprasAnio === 0 && rescatesAnio === 0) continue;
 
@@ -302,6 +272,10 @@ function generarDatosMaestros() {
         }
     });
 
+    // =============================================================================
+    // A partir de acá, la función sigue exactamente igual que antes del Paso 3.4:
+    // formateo de resultados, valuación a precio de hoy, armado del JSON final.
+    // =============================================================================
     const formatObj = (obj, total) => ({
         total: total,
         porTicker: Object.keys(obj.tickers).map(k => ({ ticker: k, monto: obj.tickers[k] })).sort((a, b) => b.monto - a.monto),
@@ -372,6 +346,7 @@ function generarDatosMaestros() {
             else valUSD = (precioARS / ccl) * p.q;
         }
 
+        if (!cashflowsPorTicker[tk]) cashflowsPorTicker[tk] = [];
         cashflowsPorTicker[tk].push({ d: HOY_SIMULADA, v: valUSD });
         valTotalUSD += valUSD;
         costoTotal += p.costo;
@@ -447,7 +422,6 @@ function generarDatosMaestros() {
         max: rendimientoYTD
     };
 
-    // Preparar log simplificado para filtrado en frontend (fecha, ticker, tipo, mov, montoUSD)
     const logParaFrontend = logSinHeader.map(row => ({
         fecha: row[1] instanceof Date ? row[1].toISOString() : String(row[1]),
         ticker: String(row[3] || '').toUpperCase().trim(),
@@ -495,6 +469,7 @@ function generarDatosMaestros() {
         logTransacciones: logParaFrontend
     });
 }
+
 
 // =================================================================================
 // ===  MOTOR.GS — PARTE 2: FUNCIONES AUXILIARES                                ===
@@ -1217,10 +1192,6 @@ function obtenerCCLActual() {
     return ccl;
 }
 
-function instalarTriggerUniversoTickers() {
-    instalarTriggerUniversoYPorfolio();
-}
-
 // =================================================================================
 // PASO 3.2 de la consolidación (ver debate "Portafolio Ultimate"): esta función
 // ya NO reimplementa el loop de cashflows/cantidades. Los cashflows por ticker
@@ -1279,9 +1250,6 @@ function actualizarXirrCartera() {
     hojaCartera.getRange(2, 9, resultados.length, 1).setNumberFormat("0.00%");
 
     console.log(`✅ XIRR actualizado en Cartera para ${resultados.length} tickers.`);
-}
-function instalarTriggerXirrCartera() {
-    instalarTriggerUniversoYPorfolio();
 }
 
 function calcularCajaVirtual(logSinHeaderExterno) {

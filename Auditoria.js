@@ -87,10 +87,31 @@ function GENERAR_AUDITORIA_COMPLETA() {
     }
   });
 
-  // 5. Estructuras
-  const portfolio = {};
-  const transDetalle = [];
+  // =============================================================================
+  // PASO 3.5 de la consolidación (ver debate "Portafolio Ultimate"): esta
+  // función ya NO reimplementa el loop de posiciones. La posición final de
+  // cada ticker sale de snapshotAFecha() y el detalle transacción por
+  // transacción sale de ledgerCompleto() — ambas en MotorPosiciones.gs, que
+  // ya aplican Método B, el tope de venta (FIX M-011) y la regla de
+  // venta-sin-stock (FIX M-002). Se preserva la regla de negocio PROPIA de
+  // esta auditoría (distinta de la del Dashboard): la ganancia extra de una
+  // amortización se suma SIEMPRE a rentaRF, sin el filtro de
+  // tickersConRentaExplicita — acá interesa el efectivo realmente cobrado,
+  // no evitar duplicar con el Modified Dietz (que esta hoja no calcula).
+  // =============================================================================
+  const snapshotHoy = snapshotAFecha(logSinHeader, HOY_SIMULADA);
+  const ledger = ledgerCompleto(logSinHeader);
 
+  const portfolio = {};
+  Object.keys(snapshotHoy.posiciones).forEach(tk => {
+    const p = snapshotHoy.posiciones[tk];
+    portfolio[tk] = {
+      ticker: tk, tipo: p.tipo, qty: p.q, costo: p.costo, costoOriginal: p.costoOriginal,
+      cobradoRentas: 0, cobradoAmortiz: 0, realizedPL: 0, cashflows: []
+    };
+  });
+
+  const transDetalle = [];
   let totalGciaCapitalRV = 0;
   let totalGciaCapitalRF = 0;
   let totalDivsRV = 0;
@@ -98,136 +119,64 @@ function GENERAR_AUDITORIA_COMPLETA() {
   let totalAmortizRF = 0;
   const gciaPorAnio = {};
 
-  // 6. Procesar log — holdings
-  logSinHeader.forEach((row, idx) => {
-    const fecha = new Date(row[1]);
-    if (isNaN(fecha.getTime())) return;
+  let qAntesPorTicker = {};
+  let costoAntesPorTicker = {};
 
-    const year = fecha.getFullYear();
-    const ticker = String(row[3]).toUpperCase().trim();
-    const tipoStr = String(row[4]);
-    const mov = String(row[5]).toLowerCase().trim();
-    const cant = Math.abs(cleanNum(row[6]));
-    const montoUSD = Math.abs(cleanNum(row[10]));
-    const ratioSplit = cleanNum(row[11]);
+  ledger.transacciones.forEach(t => {
+    const year = t.anio;
+    const esRV = t.tipo.toLowerCase().includes('cedear') || t.tipo.toLowerCase().includes('accion');
+    const qAntes = qAntesPorTicker[t.ticker] || 0;
+    const costoAntes = (costoAntesPorTicker[t.ticker] !== undefined) ? costoAntesPorTicker[t.ticker] : 0;
+    const costoUsadoEstaFila = costoAntes - t.costoDespues; // > 0 en ventas/amortizaciones que reducen costo
 
-    if (!ticker) return;
-    if (ticker === 'USD' || ticker === 'CASH') return;
-
-    const esRV = tipoStr.toLowerCase().includes('cedear') || tipoStr.toLowerCase().includes('accion');
-
-    if (!portfolio[ticker]) {
-      portfolio[ticker] = {
-        ticker: ticker, tipo: tipoStr, qty: 0, costo: 0, costoOriginal: 0,
+    if (!portfolio[t.ticker]) {
+      // Ticker sin posición viva hoy (se cerró del todo en el pasado) pero con
+      // historia — lo agregamos igual para que su detalle no se pierda.
+      portfolio[t.ticker] = {
+        ticker: t.ticker, tipo: t.tipo, qty: 0, costo: 0, costoOriginal: 0,
         cobradoRentas: 0, cobradoAmortiz: 0, realizedPL: 0, cashflows: []
       };
     }
-    const p = portfolio[ticker];
+    const p = portfolio[t.ticker];
 
-    if (mov.includes('compra') || mov.includes('aporte') || mov.includes('suscripcion') || mov.includes('canje_entrada')) {
-      p.qty += cant;
-      p.costo += montoUSD;
-      p.costoOriginal += montoUSD;
-      p.cashflows.push({ date: fecha, amount: -montoUSD });
+    if (t.cashflow) p.cashflows.push({ date: t.fecha, amount: t.cashflow });
 
-    } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
-      if (p.qty > 0) {
-        // FIX M-011: la venta nunca puede superar el stock disponible — si el
-        // log dice que vendiste más de lo que tenías, tomamos como máximo lo
-        // que realmente había (evita cantidades negativas que corrompen el
-        // costo promedio de ahí en adelante). Mismo arreglo que en Motor.gs.
-        const cantVenta = Math.min(cant, p.qty);
+    if (!gciaPorAnio[year]) gciaPorAnio[year] = { capRV: 0, capRF: 0, divRV: 0, rentaRF: 0, amortizRF: 0 };
 
-        const ppc = p.costo / p.qty;
-        const ppcOriginal = p.costoOriginal / p.qty;
-        const costoVenta = ppc * cantVenta;
-        const costoOriginalVenta = ppcOriginal * cantVenta;
-        const ganancia = montoUSD - costoVenta;
+    if (t.movimiento.includes('venta') || t.movimiento.includes('rescate') || t.movimiento.includes('canje_salida')) {
+      const etiqueta = (qAntes > 0) ? "VENTA" : "VENTA (sin compra previa)";
+      p.realizedPL += t.gananciaRealizada;
+      transDetalle.push([t.fecha, t.ticker, t.tipo, etiqueta, t.montoUSD, costoUsadoEstaFila, t.gananciaRealizada, year]);
 
-        p.realizedPL += ganancia;
-        p.qty -= cantVenta;
-        p.costo -= costoVenta;
-        p.costoOriginal -= costoOriginalVenta;
+      if (esRV) { totalGciaCapitalRV += t.gananciaRealizada; gciaPorAnio[year].capRV += t.gananciaRealizada; }
+      else { totalGciaCapitalRF += t.gananciaRealizada; gciaPorAnio[year].capRF += t.gananciaRealizada; }
 
-        if (p.qty < 0.0001) { p.qty = 0; p.costo = 0; p.costoOriginal = 0; }
+    } else if (t.movimiento.includes('dividendo') || t.movimiento.includes('renta') || t.movimiento.includes('interes')) {
+      p.cobradoRentas += t.montoUSD;
+      transDetalle.push([t.fecha, t.ticker, t.tipo, esRV ? "DIVIDENDO" : "RENTA", t.montoUSD, 0, t.montoUSD, year]);
 
-        p.cashflows.push({ date: fecha, amount: montoUSD });
+      if (esRV) { totalDivsRV += t.montoUSD; gciaPorAnio[year].divRV += t.montoUSD; }
+      else { totalRentasRF += t.montoUSD; gciaPorAnio[year].rentaRF += t.montoUSD; }
 
-        transDetalle.push([fecha, ticker, p.tipo, "VENTA", montoUSD, costoVenta, ganancia, year]);
+    } else if (t.movimiento.includes('amortiza')) {
+      // Nota: filas de amortización con Monto_Neto_USD = 0 nunca llegan hasta
+      // acá — ledgerCompleto() ya las filtra (con su warning correspondiente)
+      // antes de incluirlas en la lista de transacciones.
+      p.cobradoAmortiz += t.montoUSD;
+      transDetalle.push([t.fecha, t.ticker, t.tipo, "AMORTIZACION", t.montoUSD, costoUsadoEstaFila, t.gananciaRealizada, year]);
 
-        if (!gciaPorAnio[year]) gciaPorAnio[year] = { capRV: 0, capRF: 0, divRV: 0, rentaRF: 0, amortizRF: 0 };
-        if (esRV) {
-          totalGciaCapitalRV += ganancia;
-          gciaPorAnio[year].capRV += ganancia;
-        } else {
-          totalGciaCapitalRF += ganancia;
-          gciaPorAnio[year].capRF += ganancia;
-        }
-      } else {
-        // FIX M-002: venta/rescate sin compra previa registrada (posición
-        // heredada, fila de compra faltante, etc.) — antes esta fila se
-        // ignoraba por completo. Ahora el 100% del monto se trata como
-        // ganancia realizada, ya que no hay costo contra el cual restarlo.
-        // Mismo arreglo que en Motor.gs.
-        const ganancia = montoUSD;
-        p.realizedPL += ganancia;
-        p.cashflows.push({ date: fecha, amount: montoUSD });
+      totalAmortizRF += t.montoUSD;
+      gciaPorAnio[year].amortizRF += t.montoUSD;
 
-        transDetalle.push([fecha, ticker, p.tipo, "VENTA (sin compra previa)", montoUSD, 0, ganancia, year]);
-
-        if (!gciaPorAnio[year]) gciaPorAnio[year] = { capRV: 0, capRF: 0, divRV: 0, rentaRF: 0, amortizRF: 0 };
-        if (esRV) {
-          totalGciaCapitalRV += ganancia;
-          gciaPorAnio[year].capRV += ganancia;
-        } else {
-          totalGciaCapitalRF += ganancia;
-          gciaPorAnio[year].capRF += ganancia;
-        }
+      if (t.gananciaRealizada > 0) {
+        gciaPorAnio[year].rentaRF += t.gananciaRealizada;
+        totalRentasRF += t.gananciaRealizada;
       }
-
-    } else if (mov.includes('dividendo') || mov.includes('renta') || mov.includes('interes')) {
-      p.cobradoRentas += montoUSD;
-      p.cashflows.push({ date: fecha, amount: montoUSD });
-
-      transDetalle.push([fecha, ticker, p.tipo, esRV ? "DIVIDENDO" : "RENTA", montoUSD, 0, montoUSD, year]);
-
-      if (!gciaPorAnio[year]) gciaPorAnio[year] = { capRV: 0, capRF: 0, divRV: 0, rentaRF: 0, amortizRF: 0 };
-      if (esRV) {
-        totalDivsRV += montoUSD;
-        gciaPorAnio[year].divRV += montoUSD;
-      } else {
-        totalRentasRF += montoUSD;
-        gciaPorAnio[year].rentaRF += montoUSD;
-      }
-
-    } else if (mov.includes('amortiza')) {
-      p.cobradoAmortiz += montoUSD;
-      p.cashflows.push({ date: fecha, amount: montoUSD });
-
-      let gananciaExtra = 0, costoReducido = montoUSD;
-      if (montoUSD > p.costo) {
-        gananciaExtra = montoUSD - p.costo;
-        costoReducido = p.costo;
-        p.costo = 0;
-      } else {
-        p.costo -= montoUSD;
-      }
-
-      transDetalle.push([fecha, ticker, p.tipo, "AMORTIZACION", montoUSD, costoReducido, gananciaExtra, year]);
-
-      totalAmortizRF += montoUSD;
-      if (!gciaPorAnio[year]) gciaPorAnio[year] = { capRV: 0, capRF: 0, divRV: 0, rentaRF: 0, amortizRF: 0 };
-      gciaPorAnio[year].amortizRF += montoUSD;
-
-      if (gananciaExtra > 0) {
-        gciaPorAnio[year].rentaRF += gananciaExtra;
-        totalRentasRF += gananciaExtra;
-      }
-
-    } else if (mov.includes('split')) {
-      // FIX #4: Split y Contra-Split unificados, ratio siempre multiplicador directo
-      if (ratioSplit > 0 && p.qty > 0) p.qty = p.qty * ratioSplit;
     }
+    // Nota: 'compra' y 'split' no generan fila en transDetalle — igual que antes.
+
+    qAntesPorTicker[t.ticker] = t.qDespues;
+    costoAntesPorTicker[t.ticker] = t.costoDespues;
   });
 
   // 7. Valuación final + XIRR (usa calcXIRR de Motor.gs)

@@ -296,7 +296,8 @@ function ledgerCompleto(logSinHeader) {
                 transacciones.push({
             fecha: fechaFila, ticker: ticker, tipo: d.tipo, movimiento: d.movimiento,
             montoUSD: d.montoUSD, gananciaRealizada: d.gananciaRealizada, anio: anio,
-            cashflow: d.cashflow
+            cashflow: d.cashflow,
+            qDespues: posiciones[ticker].q, costoDespues: posiciones[ticker].costo
         });
 
         if (!statsPorAnio[anio]) {

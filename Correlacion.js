@@ -18,20 +18,40 @@ function limpiarTemporales() {
 }
 
 // ------------------------------------------------
+// PASO de mejora (ver debate "Portafolio Ultimate", pedido tras estabilizar
+// la cartera a ~20 Cedears): lee las columnas de 'Cartera' POR NOMBRE de
+// encabezado, no por número fijo. Si el día de mañana se reordena una
+// columna en esa hoja, esto sigue funcionando — antes ya se había roto en
+// silencio una vez (ver el comentario histórico que decía "col H —
+// corregido, antes apuntaba a col I").
+// ------------------------------------------------
 function leerCartera() {
   var ss    = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('Cartera');
   if (!sheet) throw new Error('No se encontró la hoja Cartera');
-  var data    = sheet.getDataRange().getValues();
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+
+  var headers = data[0].map(function(h) { return String(h).trim(); });
+  var idxTipo = headers.indexOf('Tipo_Activo');
+  var idxTicker = headers.indexOf('Ticker');
+  var idxValorUSD = headers.indexOf('Valor Actual USD');
+  var idxPL = headers.indexOf('P/L %');
+
+  if (idxTipo === -1 || idxTicker === -1 || idxValorUSD === -1 || idxPL === -1) {
+    throw new Error('No se encontraron todas las columnas esperadas en Cartera ' +
+      '(Ticker, Tipo_Activo, "Valor Actual USD", "P/L %"). Revisá los encabezados de la fila 1.');
+  }
+
   var cedears = [];
   for (var i = 1; i < data.length; i++) {
-    var tipo   = String(data[i][1] || '').trim();
-    var ticker = String(data[i][0] || '').trim().toUpperCase();
+    var tipo   = String(data[i][idxTipo] || '').trim();
+    var ticker = String(data[i][idxTicker] || '').trim().toUpperCase();
     if (tipo === 'Cedear' && ticker) {
       cedears.push({
         ticker:   ticker,
-        valorUSD: parseFloat(String(data[i][5]).replace(/[$,]/g, '')) || 0, // col F
-        pl:       data[i][7] // col H — P/L % (corregido, antes apuntaba a col I)
+        valorUSD: parseFloat(String(data[i][idxValorUSD]).replace(/[$,]/g, '')) || 0,
+        pl:       data[i][idxPL]
       });
     }
   }
