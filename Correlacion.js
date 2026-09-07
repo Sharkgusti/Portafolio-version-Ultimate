@@ -98,61 +98,86 @@ function generarAnalisisCompleto() {
 
   var retornosPorFecha = {};
 
-  for (var idx = 0; idx < n; idx++) {
-    var ticker   = tickers[idx];
-    var gfTicker = TICKER_MAP[ticker] || ticker;
+  // ------------------------------------------------------------------
+  // OPTIMIZACIÓN (ver debate "Portafolio Ultimate", pedida tras estabilizar
+  // la cartera a ~20 Cedears): antes se creaba una hoja temporal POR TICKER,
+  // con una espera fija de 2.5s cada vez — con ~20 Cedears eso sumaba casi
+  // un minuto de espera secuencial. Ahora se piden TODOS los históricos en
+  // una sola hoja temporal (cada ticker ocupa su propio par de columnas
+  // Fecha/Cierre), lo que deja que Sheets resuelva todas las fórmulas
+  // GOOGLEFINANCE en paralelo en una sola pasada de cálculo. Con ≤20
+  // Cedears esto nunca iba a acercarse al límite de 6 minutos de Apps
+  // Script de ninguna manera, pero igual baja el tiempo total de ~50-60s a
+  // ~10s, y dejás de crear/borrar 20 hojas por corrida.
+  // ------------------------------------------------------------------
+  corrSheet.getRange('A1').setValue('⏳ Pidiendo históricos de ' + n + ' Cedears en paralelo...');
+  SpreadsheetApp.flush();
 
-    corrSheet.getRange('A1').setValue('⏳ ' + (idx+1) + '/' + n + ': ' + ticker);
-    SpreadsheetApp.flush();
+  var tempName  = 'TEMP_CORR_BATCH';
+  var tempSheet = ss.getSheetByName(tempName);
+  if (tempSheet) tempSheet.clear();
+  else tempSheet = ss.insertSheet(tempName);
 
-    try {
-      var tempName  = 'TEMP_' + ticker;
-      var tempSheet = ss.getSheetByName(tempName);
-      if (tempSheet) tempSheet.clear();
-      else tempSheet = ss.insertSheet(tempName);
+  var colsLote = n * 2;
+  if (tempSheet.getMaxColumns() < colsLote) {
+    tempSheet.insertColumnsAfter(tempSheet.getMaxColumns(), colsLote - tempSheet.getMaxColumns());
+  }
 
-      tempSheet.getRange('A1').setFormula(
+  try {
+    for (var idx = 0; idx < n; idx++) {
+      var gfTicker = TICKER_MAP[tickers[idx]] || tickers[idx];
+      var colFecha1based = idx * 2 + 1;
+      tempSheet.getRange(1, colFecha1based).setFormula(
         '=GOOGLEFINANCE("' + gfTicker + '","close",' +
         dateGF(fechaInicio) + ',' + dateGF(fechaFin) + ',"DAILY")'
       );
+    }
+    SpreadsheetApp.flush();
 
-      SpreadsheetApp.flush();
-      Utilities.sleep(2500);
+    // Una sola espera para que TODAS las fórmulas resuelvan. Si a la primera
+    // pasada algún bloque todavía no terminó (poco probable, pero posible
+    // con conexión lenta), esperamos un poco más y releemos una vez — evita
+    // tanto una espera fija innecesariamente larga como leer datos a medio
+    // resolver.
+    Utilities.sleep(6000);
+    var valoresLote = tempSheet.getDataRange().getValues();
+    if (valoresLote.length < 200) { // menos de ~200 filas es sospechoso para 365 días de histórico
+      Utilities.sleep(4000);
+      valoresLote = tempSheet.getDataRange().getValues();
+    }
+  } finally {
+    ss.deleteSheet(tempSheet);
+  }
 
-      var values = tempSheet.getDataRange().getValues();
-      ss.deleteSheet(tempSheet);
+  for (var idx2 = 0; idx2 < n; idx2++) {
+    var ticker    = tickers[idx2];
+    var colFecha  = idx2 * 2;     // 0-based, tal como lo indexa el array leído
+    var colCierre = colFecha + 1;
 
-      if (values.length < 30) {
-        Logger.log('Pocos datos para ' + ticker + ': ' + values.length + ' filas');
-        continue;
+    var precios = {};
+    for (var r = 1; r < valoresLote.length; r++) {
+      var fila   = valoresLote[r];
+      var fecha  = fila[colFecha];
+      var precio = fila[colCierre];
+      if (fecha instanceof Date && precio > 0) {
+        precios[fmtKey(fecha)] = precio;
       }
+    }
 
-      var precios = {};
-      for (var r = 1; r < values.length; r++) {
-        var fecha  = values[r][0];
-        var precio = values[r][1];
-        if (fecha instanceof Date && precio > 0) {
-          precios[fmtKey(fecha)] = precio;
-        }
-      }
+    if (Object.keys(precios).length < 30) {
+      Logger.log('Pocos datos para ' + ticker + ': ' + Object.keys(precios).length + ' días');
+      continue;
+    }
 
-      var fechasOrd = Object.keys(precios).sort();
-      var retMap    = {};
-      for (var f = 1; f < fechasOrd.length; f++) {
-        retMap[fechasOrd[f]] = (precios[fechasOrd[f]] / precios[fechasOrd[f-1]]) - 1;
-      }
+    var fechasOrd = Object.keys(precios).sort();
+    var retMap    = {};
+    for (var f = 1; f < fechasOrd.length; f++) {
+      retMap[fechasOrd[f]] = (precios[fechasOrd[f]] / precios[fechasOrd[f-1]]) - 1;
+    }
 
-      if (Object.keys(retMap).length > 15) {
-        retornosPorFecha[ticker] = retMap;
-        Logger.log('OK: ' + ticker + ' — ' + Object.keys(retMap).length + ' días');
-      }
-
-    } catch (e) {
-      Logger.log('Error ' + ticker + ': ' + e.message);
-      try {
-        var ts = ss.getSheetByName('TEMP_' + ticker);
-        if (ts) ss.deleteSheet(ts);
-      } catch (_) {}
+    if (Object.keys(retMap).length > 15) {
+      retornosPorFecha[ticker] = retMap;
+      Logger.log('OK: ' + ticker + ' — ' + Object.keys(retMap).length + ' días');
     }
   }
 
@@ -256,13 +281,19 @@ function generarAvisos(ss, cartera, matrizCorr) {
     });
     row++;
   }
+  // FIX (confirmado con datos reales — ver debate "Portafolio Ultimate", META
+  // con 164.70% de P/L): la columna "P/L %" de Cartera es una fórmula nativa
+  // de Sheets que siempre devuelve una FRACCIÓN (1.647 para 164.70%), nunca
+  // un número de porcentaje ya escalado. La heurística vieja (dividir por 100
+  // si el valor superaba 1) asumía que un P/L > 100% "seguro" era un número
+  // sin escalar — pero un Cedear ganador de verdad SÍ puede superar el 100%,
+  // y ahí la heurística rompía en silencio (mostraba 1.65% en vez de 164.70%).
   function writePL(cell, val) {
     if (val === null || val === undefined || val === '') return;
-    var num = parseFloat(String(val).replace(/[%,\s]/g, ''));
+    var num = (typeof val === 'number') ? val : parseFloat(String(val).replace(/[%,\s]/g, ''));
     if (isNaN(num)) { cell.setValue(val); return; }
-    var frac = (Math.abs(num) > 1) ? num / 100 : num;
-    cell.setValue(frac).setNumberFormat('0.0%')
-        .setFontColor(frac < 0 ? '#cc0000' : '#2d6a2d');
+    cell.setValue(num).setNumberFormat('0.0%')
+        .setFontColor(num < 0 ? '#cc0000' : '#2d6a2d');
   }
 
   // ═══ 1 — RESUMEN (SIN "% especie", eliminada) ═══════════════════
