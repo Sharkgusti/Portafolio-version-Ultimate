@@ -77,7 +77,7 @@ function leerFlujosPorCada100(nombreHoja, fechaCorte, cantidadesReales) {
     // Respaldo: K3 manual (sirve para tenencias teóricas de comparación, K3=100)
     let qty = 0;
     try { qty = sheet.getRange("K3").getValue(); } catch (e) { }
-    tenenciaReal = (typeof qty === 'number' && qty > 0 && qty !== 100) ? qty : 0;
+   tenenciaReal = (typeof qty === 'number' && qty > 0 && qty !== TENENCIA_TEORICA_BOMBONERA) ? qty : 0;
   }
 
   const divisorFrecuencia = obtenerFrecuenciaBono(sheet, data);

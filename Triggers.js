@@ -26,8 +26,7 @@ function consolidarFuturosFlujosRF() {
         let qty = 0;
         try { qty = sheet.getRange("K3").getValue(); } catch (e) { }
         if (typeof qty !== 'number' || qty <= 0) continue;
-        if (qty === 100) continue; // Tenencia teórica de Bombonera (bono que no poseés) — excluir de la proyección real
-
+       if (qty === TENENCIA_TEORICA_BOMBONERA) continue; // Tenencia teórica de Bombonera (bono que no poseés) — excluir de la proyección real
         let ticker = sheet.getName();
         try { let nM = sheet.getRange("L1").getValue(); if (nM && String(nM).trim() !== "") ticker = String(nM).trim().toUpperCase(); } catch (e) { }
 

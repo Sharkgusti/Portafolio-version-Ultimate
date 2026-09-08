@@ -1,3 +1,5 @@
+
+
 <!DOCTYPE html>
 <html lang="es">
 
@@ -599,8 +601,17 @@
         }
 
         // ========== FUNCIONES DE RENDIMIENTO (TRAILING) ==========
-        // (normTipoJS() se eliminó acá — era una copia de normalizar() de Motor.gs,
-        // sin más uso que la rama muerta de renderBridge() que ya se sacó.)
+        function normTipoJS(t) {
+            t = (t || '').toLowerCase();
+            if (t.includes('cedear')) return 'Cedear';
+            if (t.includes('accion')) return 'Acciones';
+            if (t.includes('bono')) return 'Bonos';
+            if (t.includes('negociable') || t.includes(' on')) return 'ONs';
+            if (t.includes('fci')) return 'FCI';
+            if (t.includes('cartera')) return 'Cartera';
+            if (t.includes('liquidez')) return 'Liquidez';
+            return 'Otros';
+        }
 
         function fRend(el, modo) {
             if (el) act(el, 'p-rend');
@@ -646,67 +657,248 @@
         function renderBridge(desde, hasta, modo = 'mes', labelPeriodo = 'Últimos 30 días', limitadoPorPiso = false) {
             if (!D || !D.kpis) return;
             const r = (D.kpis.rendimientoPeriodos || {})[modo];
-            if (!r) {
-                // Esto no debería pasar nunca — generarDatosMaestros() (Motor.gs)
-                // siempre calcula los 5 períodos (mes/trim/sem/anio/max) en el
-                // backend. Si ves este error en la consola, el problema está en
-                // el motor, no acá — antes esta función tenía un cálculo
-                // alternativo entero en JS (recorría el Log de nuevo y traía su
-                // propio solver de XIRR) para este caso, pero como nunca se
-                // ejecutaba se sacó en la limpieza del "Portafolio Ultimate".
-                console.error('[renderBridge] Falta D.kpis.rendimientoPeriodos.' + modo + ' — revisar el backend.');
+            if (r) {
+                const f = (CUR === 'usd') ? 1 : FX;
+                const periodo = modo === 'anio' && limitadoPorPiso
+                    ? `DESDE 01/02/2026 · ${r.diasPeriodo || ''} DÍAS`
+                    : `DESDE ${r.fechaCorteStr} · ${r.diasPeriodo || ''} DÍAS`;
+                const paintPct = (id, valor) => {
+                    const el = sID(id); if (!el) return;
+                    const n = (valor || 0) * 100;
+                    el.innerText = Math.abs(n).toFixed(2) + '%';
+                    el.style.color = n >= 0 ? 'var(--green)' : 'var(--red)';
+                };
+                const paintMoney = (id, valor) => {
+                    const el = sID(id); if (!el) return;
+                    el.innerText = money((valor || 0) * f);
+                    el.style.color = 'var(--white)';
+                };
+
+                                if (modo !== 'max') {
+                    safeSet('tit-rend-variable', `RENDIMIENTO DEL PERÍODO · ${periodo}`);
+                    safeSet('lbl-var-pl-tot', `P/L % TOTAL · ${labelPeriodo.toUpperCase()}`);
+                    safeSet('lbl-var-pl-rv', `P/L % RV · ${labelPeriodo.toUpperCase()}`);
+                    safeSet('lbl-var-pl-rf', `P/L % RF · ${labelPeriodo.toUpperCase()}`);
+                    paintPct('var-pl-tot', r.retAbsolutoTotal);
+                    paintPct('var-pl-rv', r.retAbsolutoVariable);
+                    paintPct('var-pl-rf', r.retAbsolutoFija);
+                }
+
+                paintMoney('br-ini', r.saldoInicialUSD);
+                paintMoney('br-ap', r.aportesUSD);
+                paintMoney('br-ret', r.retirosUSD);
+                paintMoney('br-div', r.dividendosUSD);
+                paintMoney('br-ren', r.rentaUSD);
+                paintMoney('br-amo', r.amortizacionesUSD);
+                const pl = sID('br-pl');
+                if (pl) {
+                    pl.innerText = money(Math.abs(r.plValuacionUSD || 0) * f);
+                    pl.style.color = (r.plValuacionUSD || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+                }
+                paintMoney('br-fin', r.saldoFinalUSD);
                 return;
             }
             const f = (CUR === 'usd') ? 1 : FX;
-            const periodo = modo === 'anio' && limitadoPorPiso
-                ? `DESDE 01/02/2026 · ${r.diasPeriodo || ''} DÍAS`
-                : `DESDE ${r.fechaCorteStr} · ${r.diasPeriodo || ''} DÍAS`;
-            const paintPct = (id, valor) => {
-                const el = sID(id); if (!el) return;
-                const n = (valor || 0) * 100;
+            const log = D.logTransacciones || [];
+            const evo = D.evolucionHistorica || { fechas: [], valores: [] };
+            const r26 = D.kpis.rendimientoLimpio2026 || {};
+
+            const desdeMs = desde.getTime();
+            const hastaMs = hasta.getTime();
+            const diasReales = Math.max(1, Math.round((hastaMs - desdeMs) / 86400000));
+            const desdeStr = desde.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+            // 1. Título dinámico
+            let titPeriodo = '';
+            if (modo === 'max') {
+                titPeriodo = `RENDIMIENTO DEL PERÍODO · DESDE 01/02/2026`;
+            } else if (modo === 'anio' && limitadoPorPiso) {
+                titPeriodo = `RENDIMIENTO DEL PERÍODO · ÚLTIMO AÑO (DESDE 01/02/2026 · ${diasReales} DÍAS)`;
+            } else {
+                titPeriodo = `RENDIMIENTO DEL PERÍODO · DESDE ${desdeStr} (${diasReales} DÍAS)`;
+            }
+            safeSet('tit-rend-limpio', titPeriodo);
+
+            // 2. Buscar valor de cartera al inicio del período (evolucionHistorica)
+            let valorInicioTotal = 0;
+            if (evo.fechas && evo.fechas.length) {
+                for (let i = 0; i < evo.fechas.length; i++) {
+                    const t = new Date(evo.fechas[i]).getTime();
+                    if (t <= desdeMs) valorInicioTotal = evo.valores[i];
+                    else break;
+                }
+            }
+            if (valorInicioTotal <= 0) {
+                valorInicioTotal = (r26.saldoInicialUSD && modo === 'max') ? r26.saldoInicialUSD : (D.kpis.valorTotal.usd * 0.9);
+            }
+
+            const valorFinalTotal = D.kpis.valorTotal.usd || 0;
+            const valFinalRV = D.kpis.valorRV || (valorFinalTotal * 0.5);
+            const valFinalRF = D.kpis.valorRF || (valorFinalTotal * 0.5);
+
+            // 3. Flujos del período desglosados
+            let aportes = 0, retiros = 0, divs = 0, renta = 0, amort = 0;
+            let comprasRV = 0, ventasRV = 0, divsRV = 0;
+            let comprasRF = 0, ventasRF = 0, rentaRF = 0, amortRF = 0;
+            let cfTOTAL = [{ d: desde, v: -valorInicioTotal }];
+            let cfRV = [];
+            let cfRF = [];
+
+            log.forEach(row => {
+                const fMs = new Date(row.fecha).getTime();
+                if (fMs < desdeMs || fMs > hastaMs) return;
+
+                const mov = (row.mov || '').toLowerCase();
+                const monto = Math.abs(parseFloat(row.montoUSD) || 0);
+                const ticker = (row.ticker || '').toUpperCase();
+                const tNorm = normTipoJS(row.tipo);
+                const esCash = (ticker === 'USD' || ticker === 'CASH' || tNorm === 'Liquidez');
+                const esRV = (tNorm === 'Cedear' || tNorm === 'Acciones');
+                const esRF = !esRV && !esCash;
+                const fecha = new Date(row.fecha);
+
+                // Flujos externos de cartera total
+                if (esCash) {
+                    if (mov.includes('aporte')) {
+                        aportes += monto;
+                        cfTOTAL.push({ d: fecha, v: -monto });
+                    } else if (mov.includes('retiro')) {
+                        retiros += monto;
+                        cfTOTAL.push({ d: fecha, v: monto });
+                    }
+                }
+
+                // Bucket Renta Variable
+                if (esRV) {
+                    if (mov.includes('compra') || mov.includes('suscrip') || mov.includes('canje_entrada')) {
+                        comprasRV += monto; cfRV.push({ d: fecha, v: -monto });
+                    } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
+                        ventasRV += monto; cfRV.push({ d: fecha, v: monto });
+                    } else if (mov.includes('dividen')) {
+                        divs += monto; divsRV += monto; cfRV.push({ d: fecha, v: monto });
+                    }
+                }
+
+                // Bucket Renta Fija
+                if (esRF) {
+                    if (mov.includes('compra') || mov.includes('suscrip') || mov.includes('canje_entrada')) {
+                        comprasRF += monto; cfRF.push({ d: fecha, v: -monto });
+                    } else if (mov.includes('venta') || mov.includes('rescate') || mov.includes('canje_salida')) {
+                        ventasRF += monto; cfRF.push({ d: fecha, v: monto });
+                    } else if (mov.includes('renta') || mov.includes('interes')) {
+                        renta += monto; rentaRF += monto; cfRF.push({ d: fecha, v: monto });
+                    } else if (mov.includes('amortiz')) {
+                        amort += monto; amortRF += monto; cfRF.push({ d: fecha, v: monto });
+                    }
+                }
+
+                // Genéricos no capturados
+                if (mov.includes('dividen') && !esRV) divs += monto;
+                if ((mov.includes('renta') || mov.includes('interes')) && !esRF) renta += monto;
+                if (mov.includes('amortiz') && !esRF) amort += monto;
+            });
+
+            // Ratios iniciales RV / RF
+            const ratioRV = (valFinalRV + valFinalRF > 0) ? (valFinalRV / (valFinalRV + valFinalRF)) : 0.5;
+            const valorInicioRV = Math.max(10, valorInicioTotal * ratioRV);
+            const valorInicioRF = Math.max(10, valorInicioTotal - valorInicioRV);
+
+            // Añadir nodos iniciales y finales a cfRV / cfRF
+            cfRV.unshift({ d: desde, v: -valorInicioRV });
+            cfRV.push({ d: hasta, v: valFinalRV });
+            cfRF.unshift({ d: desde, v: -valorInicioRF });
+            cfRF.push({ d: hasta, v: valFinalRF });
+
+            // Flujo final para XIRR total
+            cfTOTAL.push({ d: hasta, v: valorFinalTotal });
+
+            // 4. Regla matemática del Estado de Cuenta (cierra al centavo):
+            const plValuacion = valorFinalTotal - valorInicioTotal - aportes + retiros - divs - renta - amort;
+
+            // 5. Cálculos de XIRR para la Fila 3 Variable
+            let xirrTotal, xirrRV, xirrRF;
+
+            if (modo === 'max' && r26.tirTotal != null) {
+                xirrTotal = r26.tirTotal || 0;
+                xirrRV    = r26.tirVariable || 0;
+                xirrRF    = r26.tirFija || 0;
+            } else {
+                xirrTotal = calcXIRR_JS(cfTOTAL);
+                xirrRV    = calcXIRR_JS(cfRV);
+                xirrRF    = calcXIRR_JS(cfRF);
+            }
+
+            // 6. Pintar Fila 3 Variable – XIRR TOTAL / RV / RF (sin signos, color verde/rojo)
+            const paintPct3 = (id, val) => {
+                const el = sID(id);
+                if (!el) return;
+                const n = (val || 0) * 100;
                 el.innerText = Math.abs(n).toFixed(2) + '%';
                 el.style.color = n >= 0 ? 'var(--green)' : 'var(--red)';
             };
-            const paintMoney = (id, valor) => {
-                const el = sID(id); if (!el) return;
-                el.innerText = money((valor || 0) * f);
-                el.style.color = 'var(--white)';
-            };
+            paintPct3('var-tot', xirrTotal);
+            paintPct3('var-rv',  xirrRV);
+            paintPct3('var-rf',  xirrRF);
 
-            if (modo !== 'max') {
-                safeSet('tit-rend-variable', `RENDIMIENTO DEL PERÍODO · ${periodo}`);
-                safeSet('lbl-var-pl-tot', `P/L % TOTAL · ${labelPeriodo.toUpperCase()}`);
-                safeSet('lbl-var-pl-rv', `P/L % RV · ${labelPeriodo.toUpperCase()}`);
-                safeSet('lbl-var-pl-rf', `P/L % RF · ${labelPeriodo.toUpperCase()}`);
-                paintPct('var-pl-tot', r.retAbsolutoTotal);
-                paintPct('var-pl-rv', r.retAbsolutoVariable);
-                paintPct('var-pl-rf', r.retAbsolutoFija);
-            }
-
-            paintMoney('br-ini', r.saldoInicialUSD);
-            paintMoney('br-ap', r.aportesUSD);
-            paintMoney('br-ret', r.retirosUSD);
-            paintMoney('br-div', r.dividendosUSD);
-            paintMoney('br-ren', r.rentaUSD);
-            paintMoney('br-amo', r.amortizacionesUSD);
-            const pl = sID('br-pl');
-            if (pl) {
-                pl.innerText = money(Math.abs(r.plValuacionUSD || 0) * f);
-                pl.style.color = (r.plValuacionUSD || 0) >= 0 ? 'var(--green)' : 'var(--red)';
-            }
-            paintMoney('br-fin', r.saldoFinalUSD);
-
-            // Labels de la fila de XIRR del período (antes los pintaba el
-            // cálculo alternativo en JS; ahora se pintan siempre acá).
+            // Actualizar labels de Fila 3
             let periodoShort = labelPeriodo;
             if (modo === 'anio' && limitadoPorPiso) periodoShort = '210 días';
             else if (modo === 'max') periodoShort = 'Max';
             safeSet('lbl-var-tot', `XIRR TOTAL · ${periodoShort.toUpperCase()}`);
             safeSet('lbl-var-rv',  `XIRR RV · ${periodoShort.toUpperCase()}`);
             safeSet('lbl-var-rf',  `XIRR RF · ${periodoShort.toUpperCase()}`);
-            paintPct('var-tot', r.tirTotal);
-            paintPct('var-rv',  r.tirVariable);
-            paintPct('var-rf',  r.tirFija);
+
+
+            // 7. Pintar Estado de Cuenta (blanquecino, solo P/L valuación con color, sin signo)
+            const paintW = (id, v) => {
+                const el = sID(id); if (!el) return;
+                el.innerText = money((v || 0) * f);
+                el.style.color = 'var(--white)';
+            };
+            paintW('br-ini', valorInicioTotal);
+            paintW('br-ap', aportes);
+            paintW('br-ret', retiros);
+            paintW('br-div', divs);
+            paintW('br-ren', renta);
+            paintW('br-amo', amort);
+
+            const elPl = sID('br-pl');
+            if (elPl) {
+                elPl.innerText = money(Math.abs(plValuacion) * f);
+                elPl.style.color = plValuacion >= 0 ? 'var(--green)' : 'var(--red)';
+            }
+            paintW('br-fin', valorFinalTotal);
+        }
+
+
+        // XIRR en JavaScript (versión Newton-Raphson de convergencia rápida)
+        function calcXIRR_JS(values) {
+            if (!values || values.length < 2) return 0;
+            let hasPos = false, hasNeg = false;
+            for (let x of values) { if (x.v > 0) hasPos = true; if (x.v < 0) hasNeg = true; }
+            if (!hasPos || !hasNeg) return 0;
+
+            values = values.slice().sort((a, b) => a.d - b.d);
+            const t0 = values[0].d.getTime();
+
+            // Newton-Raphson
+            let x0 = 0.1;
+            for (let i = 0; i < 50; i++) {
+                if (x0 <= -0.999) x0 = -0.999;
+                let fv = 0, fd = 0;
+                for (let j = 0; j < values.length; j++) {
+                    const dt = (values[j].d.getTime() - t0) / 31536000000.0;
+                    const div = Math.pow(1.0 + x0, dt);
+                    if (div === 0 || !isFinite(div)) return 0;
+                    fv += values[j].v / div;
+                    fd -= (dt * values[j].v) / (div * (1.0 + x0));
+                }
+                if (Math.abs(fd) < 1e-9) break;
+                const x1 = x0 - fv / fd;
+                if (Math.abs(x1 - x0) < 1e-6) return isFinite(x1) ? x1 : 0;
+                x0 = x1;
+            }
+            return isFinite(x0) ? x0 : 0;
         }
 
 
@@ -884,3 +1076,4 @@
     </script>
 </body>
 </html>
+
