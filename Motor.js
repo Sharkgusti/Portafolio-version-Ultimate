@@ -2,7 +2,7 @@
 // ===  TITANIUM v2 — MOTOR.GS                                                  ===
 // ===  Única fuente: Log_Transacciones_TITANIUM                                ===
 // =================================================================================
-
+ 
 const HOJAS = {
     LOG: "Log_Transacciones_TITANIUM",
     PRECIOS: "Precios",
@@ -12,31 +12,78 @@ const HOJAS = {
     HIST: "Historico_Precios",
     QUANT: "Analisis_Quant"
 };
-
+ 
 const HOY_SIMULADA = new Date();
 HOY_SIMULADA.setHours(0, 0, 0, 0);
-
-const FECHA_CORTE_CAJA = new Date('2026-02-01');
+ 
+// =================================================================================
+// CONSTANTES A REVISAR EN CADA INSTALACIÓN NUEVA DEL SISTEMA (ver debate
+// "Portafolio Ultimate"). Los tres valores de acá abajo son específicos del
+// historial de carga de datos de ESTE usuario particular — si este archivo se
+// usa como base para otra cartera (por ejemplo, una copia del Sheet para otra
+// persona), hay que revisar y ajustar estos tres valores a la realidad de esa
+// persona antes de confiar en ningún cálculo de rendimiento o de caja.
+//
+//   FECHA_INICIO_CONFIABLE_DATOS: fecha a partir de la cual el registro de
+//     movimientos de este usuario se considera completo y confiable. Actúa
+//     como piso para: (a) el saldo de caja virtual (calcularCajaVirtual, que
+//     ignora todo movimiento de caja anterior a esta fecha) y (b) los
+//     períodos de rendimiento del Dashboard (mes/trim/sem/año no pueden
+//     empezar antes de esta fecha). Si una instalación nueva tiene registros
+//     completos desde el día 1 (por ejemplo, alguien que arranca su Log de
+//     cero), esta fecha debería ser la fecha del primer movimiento real, no
+//     quedarse en la de este usuario.
+//
+//   SALDO_INICIAL_CAJA: el saldo de caja en USD que había, reconciliado a
+//     mano, justo en FECHA_INICIO_CONFIABLE_DATOS (representa la plata que
+//     no quedó registrada movimiento por movimiento antes de esa fecha). En
+//     una instalación nueva sin ese arrastre, debería ser 0.
+// =================================================================================
+const FECHA_INICIO_CONFIABLE_DATOS = new Date(2026, 1, 1); // 1/2/2026
 const SALDO_INICIAL_CAJA = 14;
+ 
+const FECHA_CORTE_CAJA = FECHA_INICIO_CONFIABLE_DATOS; // alias: mismo concepto, usado en calcularCajaVirtual()
 const TENENCIA_TEORICA_BOMBONERA = 100;
-
+ 
 // 1. API WEB APP
+// =================================================================================
+// Clave secreta para el endpoint de datos crudos (?formato=json). La Web App
+// es pública y anónima (ANYONE_ANONYMOUS) — sin esta clave, cualquiera con el
+// link del Dashboard podría bajarse la cartera completa con un curl, sin
+// pasar por la interfaz. Cambiala por la tuya, y no la compartas.
+// =================================================================================
+const CLAVE_SECRETA_API = 'kO544sk6YxiI5bnPUS2_OpcU5wCu9p5S';
+ 
 function doGet(e) {
+  // Endpoint de datos crudos para consumo externo (ej. Python/Colab) — ver
+  // debate "Portafolio Ultimate". No devuelve ninguna página, solo el JSON
+  // que ya arma generarDatosMaestros(), tal cual, para que Python calcule
+  // métricas sin reimplementar el motor de posiciones en un tercer lenguaje.
+  if (e && e.parameter && e.parameter.formato === 'json') {
+    if (e.parameter.clave !== CLAVE_SECRETA_API) {
+      return ContentService.createTextOutput(JSON.stringify({ error: 'Clave inválida o faltante' }))
+          .setMimeType(ContentService.MimeType.JSON);
+    }
+    const datosJson = generarDatosMaestros(); // ya es un string JSON, no hace falta re-serializar
+    return ContentService.createTextOutput(datosJson)
+        .setMimeType(ContentService.MimeType.JSON);
+  }
+ 
   let template;
   let isBombonera = (e && e.parameter && e.parameter.page === 'bombonera');
-
+ 
   if (isBombonera) {
     template = HtmlService.createTemplateFromFile('IndexBombonera');
   } else {
     template = HtmlService.createTemplateFromFile('Index');
   }
-
+ 
   try {
     template.webAppUrl = ScriptApp.getService().getUrl();
   } catch (err) {
     template.webAppUrl = '';
   }
-
+ 
   return template.evaluate()
       .setTitle(isBombonera ? 'La Bombonera Digital del Contadore' : 'TITANIUM v2')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
