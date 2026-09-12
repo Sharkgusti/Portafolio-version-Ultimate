@@ -152,9 +152,10 @@ function obtenerPrecioSPY(ss) {
 // MENÚ UNIFICADO — única función onOpen() de todo el proyecto.
 // -----------------------------------------------------------------------
 function onOpen() {
-    SpreadsheetApp.getUi().createMenu('⚙️ TITANIUM')
+    SpreadsheetApp.getUi().createMenu('💎 TITANIUM')
         .addItem('🔄 Actualizar Flujos RF', 'consolidarFuturosFlujosRF')
-        .addItem('🏷️ Actualizar Universo y XIRR', 'actualizarUniversoYPorfolio')
+        .addItem('➕ Crear Hoja Nuevo Bono/ON', 'abrirDialogoNuevoBono')
+        .addItem('📈 Actualizar Universo y XIRR', 'actualizarUniversoYPorfolio')
         .addSeparator()
         .addItem('⚡ Instalación Automática de Triggers', 'instalarTodosLosTriggers')
         .addToUi();

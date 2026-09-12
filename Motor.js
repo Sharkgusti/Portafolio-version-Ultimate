@@ -1346,3 +1346,4 @@ function calcularCajaVirtualHasta(logSinHeader, fechaHasta) {
         return !isNaN(fecha.getTime()) && fecha.getTime() <= hastaMs;
     }));
 }
+
