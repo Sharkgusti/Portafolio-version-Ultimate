@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --bg: #0b132b;
+      --card: #1c2541;
+      --card-inner: #243256;
+      --primary: #356854;
+      --primary-hover: #458269;
+      --accent: #FFC300;
+      --text: #f0f3fa;
+      --text-muted: #8fa0b5;
+      --border: #3a506b;
+      --magenta: #ead1dc;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; font-size: 13px; }
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .header h2 { font-size: 17px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    .grid-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group.span-2 { grid-column: span 2; }
+    .form-group.span-4 { grid-column: span 4; }
+    label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    input, select { background-color: var(--card); border: 1px solid var(--border); color: #fff; padding: 7px 10px; border-radius: 5px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: var(--accent); }
+    .card { background-color: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-bottom: 12px; }
+    .card-title { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .radio-group { display: flex; gap: 15px; margin-bottom: 8px; }
+    .radio-label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text); font-size: 12px; text-transform: none; }
+    .btn { background-color: var(--primary); color: #fff; border: none; padding: 8px 16px; border-radius: 5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: background-color 0.2s; font-size: 13px; }
+    .btn:hover { background-color: var(--primary-hover); }
+    .btn-accent { background-color: var(--accent); color: #0b132b; font-weight: 700; }
+    .btn-accent:hover { background-color: #ffd24d; }
+    .btn-sm { padding: 4px 8px; font-size: 11px; }
+    .btn-danger { background-color: var(--danger); }
+    .btn-danger:hover { background-color: #dc2626; }
+    .actions-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .table-container { max-height: 270px; overflow-y: auto; border: 1px solid var(--border); border-radius: 5px; margin-top: 8px; background: #0e1726; }
+    table { width: 100%; border-collapse: collapse; text-align: right; font-size: 11px; }
+    th { background-color: var(--primary); color: #fff; padding: 6px 8px; font-weight: 700; position: sticky; top: 0; z-index: 2; text-align: center; border-bottom: 1px solid var(--border); }
+    td { padding: 5px 8px; border-bottom: 1px solid #1f2d48; color: #cbd5e1; }
+    td.center { text-align: center; }
+    tr:nth-child(even) td { background-color: rgba(255,255,255,0.02); }
+    tr.next-pay td { background-color: var(--magenta) !important; color: #000 !important; font-weight: 700; }
+    .editable-cell { width: 65px; background: #18233c; border: 1px solid var(--border); color: #fff; text-align: right; padding: 2px 4px; border-radius: 3px; font-size: 11px; }
+    .status-msg { margin-top: 8px; padding: 8px 12px; border-radius: 5px; font-size: 12px; display: none; }
+    .status-success { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--success); color: #6ee7b7; }
+    .status-error { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: #fca5a5; }
+    .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; text-transform: none; }
+    .badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+    .badge-ok { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid #10b981; }
+    .badge-warn { background: rgba(245, 158, 11, 0.2); color: #fcd34d; border: 1px solid #f59e0b; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2>🏛️ TITANIUM — Creador de Cronograma de Bonos / ONs</h2>
+    <span style="font-size: 11px; color: var(--text-muted);">Fórmulas vivas · Resaltado próximo pago (#ead1dc)</span>
+  </div>
+
+  <!-- 1. Identificación y Metadatos -->
+  <div class="grid-form">
+    <div class="form-group">
+      <label>Ticker USD (K1)*</label>
+      <input type="text" id="tickerUSD" placeholder="Ej: AO27D" oninput="this.value = this.value.toUpperCase()" required>
+    </div>
+    <div class="form-group">
+      <label>Ticker ARS / Cartera (L1)</label>
+      <input type="text" id="tickerPesos" placeholder="Ej: AO27" oninput="this.value = this.value.toUpperCase()">
+    </div>
+    <div class="form-group">
+      <label>Frecuencia Anual (M1)</label>
+      <select id="frecuencia" onchange="actualizarDiaAuto(); generarCronogramaPreview();">
+        <option value="2" selected>Semestral (2)</option>
+        <option value="4">Trimestral (4)</option>
+        <option value="1">Anual (1)</option>
+        <option value="12">Mensual (12)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Día Pago (Mes)</label>
+      <input type="number" id="diaPago" min="1" max="31" placeholder="Auto" onchange="generarCronogramaPreview()">
+    </div>
+
+    <div class="form-group">
+      <label>Fecha Emisión / Base</label>
+      <input type="date" id="fechaEmision" value="2024-09-30">
+    </div>
+    <div class="form-group">
+      <label>Fecha Primer Cupón</label>
+      <input type="date" id="primerPago" value="2025-03-31" onchange="actualizarDiaAuto(); generarCronogramaPreview();">
+    </div>
+    <div class="form-group span-2">
+      <label>Fecha Vencimiento Final</label>
+      <input type="date" id="vencimiento" value="2035-03-31" onchange="generarCronogramaPreview()">
+    </div>
+  </div>
+
+  <!-- 2. Configuración de Tasas y Amortizaciones -->
+  <div class="grid-form" style="grid-template-columns: 1fr 1fr;">
+    
+    <!-- Tasa de Interés -->
+    <div class="card">
+      <div class="card-title">
+        <span>📈 Tasa Cupón (% TNA)</span>
+      </div>
+      <div class="radio-group">
+        <label class="radio-label"><input type="radio" name="tipoTasa" value="fija" checked onchange="toggleTasaUI()"> Fija</label>
+        <label class="radio-label"><input type="radio" name="tipoTasa" value="stepup" onchange="toggleTasaUI()"> Step-Up / Variable</label>
+      </div>
+      <div id="tasaFijaBox" class="form-group">
+        <label>TNA Anual (%)</label>
+        <input type="number" id="tasaInteresFija" step="0.01" value="8.00" placeholder="Ej: 8.00" oninput="generarCronogramaPreview()">
+      </div>
+      <div id="tasaStepUpMsg" style="display:none; font-size:11px; color:var(--text-muted);">
+        ℹ️ Podrás ajustar la tasa de cada cupón directamente en la tabla de previsualización abajo.
+      </div>
+    </div>
+
+    <!-- Amortización -->
+    <div class="card">
+      <div class="card-title">
+        <span>💰 Esquema de Amortización</span>
+      </div>
+      <div class="radio-group">
+        <label class="radio-label"><input type="radio" name="tipoAmort" value="bullet" checked onchange="toggleAmortUI()"> Bullet</label>
+        <label class="radio-label"><input type="radio" name="tipoAmort" value="cuotas" onchange="toggleAmortUI()"> Cuotas Iguales</label>
+        <label class="radio-label"><input type="radio" name="tipoAmort" value="variable" onchange="toggleAmortUI()"> Variable / Asimétrica</label>
+      </div>
+
+      <div id="cuotasBox" class="grid-form" style="grid-template-columns: 1fr 1fr; margin-bottom:0; display:none;">
+        <div class="form-group">
+          <label>N° Cuotas</label>
+          <input type="number" id="numCuotas" value="10" min="1" oninput="generarCronogramaPreview()">
+        </div>
+        <div class="form-group">
+          <label>% por Cuota</label>
+          <input type="number" id="pctCuota" value="10.00" step="0.01" oninput="generarCronogramaPreview()">
+        </div>
+      </div>
+      <div id="variableAmortMsg" style="display:none; font-size:11px; color:var(--text-muted);">
+        ℹ️ Indicá las cuotas iniciales y finales (ej: 16.33% y luego 3.25%) directamente en la tabla.
+      </div>
+    </div>
+  </div>
+
+  <!-- Botón de Previsualización -->
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+    <button class="btn" onclick="generarCronogramaPreview()">🔄 Generar / Actualizar Cronograma</button>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span id="amortBadge" class="badge badge-ok">Amortización Total: 100.00%</span>
+      <label class="checkbox-label" title="Solo se registrará en Precios si existe una tenencia real comprada en Cartera (distinta de 100).">
+        <input type="checkbox" id="registrarEnPrecios" checked> Registrar en Precios (si es compra real)
+      </label>
+    </div>
+  </div>
+
+  <!-- 3. Tabla de Previsualización Dinámica -->
+  <div class="table-container">
+    <table id="previewTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Vencimiento</th>
+          <th>Fecha Pago</th>
+          <th>% Interés</th>
+          <th>% Cap.</th>
+          <th>% Amort.</th>
+          <th>% Residual</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody">
+        <tr><td colspan="7" class="center" style="padding:20px; color:var(--text-muted);">Hacé clic en "Generar Cronograma" para previsualizar las fechas y flujos.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mensajes de Estado y Botón de Creación -->
+  <div id="statusMsg" class="status-msg"></div>
+
+  <div class="actions-bar">
+    <button class="btn btn-danger btn-sm" onclick="google.script.host.close()">Cancelar</button>
+    <button id="btnCrear" class="btn btn-accent" onclick="enviarCrearBono()">🚀 Crear Hoja de Bono en Sheets</button>
+  </div>
+
+  <script>
+    let cuponesGenerados = [];
+
+    function actualizarDiaAuto() {
+      const primerPagoStr = document.getElementById('primerPago').value;
+      if (primerPagoStr) {
+        const parts = primerPagoStr.split('-');
+        const dia = parseInt(parts[2], 10);
+        const diaInput = document.getElementById('diaPago');
+        if (!diaInput.value) {
+          diaInput.placeholder = 'Auto (' + dia + ')';
+        }
+      }
+    }
+
+    function toggleTasaUI() {
+      const tipo = document.querySelector('input[name="tipoTasa"]:checked').value;
+      document.getElementById('tasaFijaBox').style.display = tipo === 'fija' ? 'flex' : 'none';
+      document.getElementById('tasaStepUpMsg').style.display = tipo === 'stepup' ? 'block' : 'none';
+      generarCronogramaPreview();
+    }
+
+    function toggleAmortUI() {
+      const tipo = document.querySelector('input[name="tipoAmort"]:checked').value;
+      document.getElementById('cuotasBox').style.display = tipo === 'cuotas' ? 'grid' : 'none';
+      document.getElementById('variableAmortMsg').style.display = tipo === 'variable' ? 'block' : 'none';
+      generarCronogramaPreview();
+    }
+
+    function ajustarDiaHabil(d) {
+      let res = new Date(d);
+      let dow = res.getDay();
+      if (dow === 6) res.setDate(res.getDate() + 2); // Sábado -> Lunes
+      else if (dow === 0) res.setDate(res.getDate() + 1); // Domingo -> Lunes
+      return res;
+    }
+
+    function formatDateISO(d) {
+      let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
+      if (month.length < 2) month = '0' + month;
+      if (day.length < 2) day = '0' + day;
+      return [year, month, day].join('-');
+    }
+
+    function formatDateDisplay(d) {
+      let month = '' + (d.getMonth() + 1), day = '' + d.getDate(), year = d.getFullYear();
+      return day + '/' + month + '/' + year;
+    }
+
+    function generarCronogramaPreview() {
+      const primerPagoStr = document.getElementById('primerPago').value;
+      const vtoStr = document.getElementById('vencimiento').value;
+      const frec = parseInt(document.getElementById('frecuencia').value, 10) || 2;
+      const mesesSalto = Math.round(12 / frec);
+      const diaInput = parseInt(document.getElementById('diaPago').value, 10);
+
+      if (!primerPagoStr || !vtoStr) return;
+
+      const pParts = primerPagoStr.split('-');
+      const vParts = vtoStr.split('-');
+
+      let pYear = parseInt(pParts[0], 10);
+      let pMonth = parseInt(pParts[1], 10) - 1; // 0-based
+      let pDay = parseInt(pParts[2], 10);
+
+      let vYear = parseInt(vParts[0], 10);
+      let vMonth = parseInt(vParts[1], 10) - 1;
+      let vDay = parseInt(vParts[2], 10);
+
+      let targetDay = !isNaN(diaInput) && diaInput > 0 ? diaInput : pDay;
+      let vto = new Date(vYear, vMonth, vDay, 0, 0, 0);
+
+      let fechas = [];
+      let curYear = pYear;
+      let curMonth = pMonth;
+      let iter = 0;
+
+      while (iter < 120) {
+        // Calcular último día del mes curMonth
+        let maxDiasMes = new Date(curYear, curMonth + 1, 0).getDate();
+        let diaFinal = Math.min(targetDay, maxDiasMes);
+        let curDate = new Date(curYear, curMonth, diaFinal, 0, 0, 0);
+
+        if (curDate > vto) break;
+
+        fechas.push(curDate);
+        iter++;
+
+        // Avanzar meses de forma aritmética segura
+        curMonth += mesesSalto;
+        while (curMonth >= 12) {
+          curMonth -= 12;
+          curYear += 1;
+        }
+      }
+
+      // Asegurar inclusión de fecha de vencimiento si el último cupón no llegó a ella
+      if (fechas.length === 0) {
+        fechas.push(new Date(vto));
+      } else {
+        let lastDate = fechas[fechas.length - 1];
+        if (lastDate.getTime() < vto.getTime()) {
+          fechas.push(new Date(vto));
+        } else if (lastDate.getTime() > vto.getTime()) {
+          fechas[fechas.length - 1] = new Date(vto);
+        }
+      }
+
+      const tipoTasa = document.querySelector('input[name="tipoTasa"]:checked').value;
+      const tasaFija = parseFloat(document.getElementById('tasaInteresFija').value) || 0;
+      const tipoAmort = document.querySelector('input[name="tipoAmort"]:checked').value;
+      const numCuotas = parseInt(document.getElementById('numCuotas').value, 10) || 1;
+      const pctCuota = parseFloat(document.getElementById('pctCuota').value) || 0;
+
+      const totalCupones = fechas.length;
+      let amortizaciones = new Array(totalCupones).fill(0);
+
+      if (tipoAmort === 'bullet') {
+        amortizaciones[totalCupones - 1] = 100.00;
+      } else if (tipoAmort === 'cuotas') {
+        let inicioCuotas = Math.max(0, totalCupones - numCuotas);
+        for (let i = inicioCuotas; i < totalCupones; i++) {
+          amortizaciones[i] = pctCuota;
+        }
+      }
+
+      cuponesGenerados = fechas.map((f, idx) => {
+        let fPago = ajustarDiaHabil(f);
+        return {
+          vencimiento: formatDateISO(f),
+          fechaPago: formatDateISO(fPago),
+          tasaInteres: tasaFija,
+          capitalizacion: 0,
+          amortizacion: amortizaciones[idx] || 0
+        };
+      });
+
+      renderTablaPreview();
+    }
+
+    function renderTablaPreview() {
+      const tbody = document.getElementById('previewBody');
+      tbody.innerHTML = '';
+
+      let residual = 100.00;
+      let totalAmort = 0;
+      let hoy = new Date();
+      hoy.setHours(0,0,0,0);
+      let proximoMarcado = false;
+
+      cuponesGenerados.forEach((c, idx) => {
+        totalAmort += Number(c.amortizacion) || 0;
+        residual = Math.max(0, residual - (Number(c.amortizacion) || 0) + (Number(c.capitalizacion) || 0));
+
+        let tr = document.createElement('tr');
+        let fPagoParts = c.fechaPago.split('-');
+        let fPagoDate = new Date(parseInt(fPagoParts[0],10), parseInt(fPagoParts[1],10)-1, parseInt(fPagoParts[2],10));
+        
+        let vtoParts = c.vencimiento.split('-');
+        let vtoDate = new Date(parseInt(vtoParts[0],10), parseInt(vtoParts[1],10)-1, parseInt(vtoParts[2],10));
+
+        if (!proximoMarcado && fPagoDate >= hoy) {
+          tr.className = 'next-pay';
+          proximoMarcado = true;
+        }
+
+        tr.innerHTML = `
+          <td class="center">${idx + 1}</td>
+          <td class="center">${formatDateDisplay(vtoDate)}</td>
+          <td class="center">${formatDateDisplay(fPagoDate)}</td>
+          <td><input type="number" class="editable-cell" step="0.01" value="${c.tasaInteres}" onchange="updateCupon(${idx}, 'tasaInteres', this.value)">%</td>
+          <td><input type="number" class="editable-cell" step="0.01" value="${c.capitalizacion}" onchange="updateCupon(${idx}, 'capitalizacion', this.value)">%</td>
+          <td><input type="number" class="editable-cell" step="0.01" value="${c.amortizacion}" onchange="updateCupon(${idx}, 'amortizacion', this.value)">%</td>
+          <td style="font-weight:600;">${residual.toFixed(2)}%</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const badge = document.getElementById('amortBadge');
+      badge.textContent = 'Amortización Total: ' + totalAmort.toFixed(2) + '%';
+      if (Math.abs(totalAmort - 100) < 0.01) {
+        badge.className = 'badge badge-ok';
+      } else {
+        badge.className = 'badge badge-warn';
+      }
+    }
+
+    function updateCupon(idx, field, value) {
+      cuponesGenerados[idx][field] = parseFloat(value) || 0;
+      renderTablaPreview();
+    }
+
+    function enviarCrearBono() {
+      const tickerUSD = document.getElementById('tickerUSD').value.trim();
+      const tickerPesos = document.getElementById('tickerPesos').value.trim();
+      const frecuencia = document.getElementById('frecuencia').value;
+      const fechaEmision = document.getElementById('fechaEmision').value;
+      const registrarEnPrecios = document.getElementById('registrarEnPrecios').checked;
+
+      const status = document.getElementById('statusMsg');
+      const btnCrear = document.getElementById('btnCrear');
+
+      if (!tickerUSD) {
+        status.className = 'status-msg status-error';
+        status.textContent = '⚠️ Ingresá el Ticker en Dólares (USD).';
+        status.style.display = 'block';
+        return;
+      }
+
+      if (cuponesGenerados.length === 0) {
+        status.className = 'status-msg status-error';
+        status.textContent = '⚠️ Generá la previsualización del cronograma antes de crear la hoja.';
+        status.style.display = 'block';
+        return;
+      }
+
+      btnCrear.disabled = true;
+      btnCrear.textContent = '⏳ Creando hoja en Sheets...';
+      status.style.display = 'none';
+
+      const config = {
+        tickerUSD: tickerUSD,
+        tickerPesos: tickerPesos,
+        frecuencia: frecuencia,
+        fechaEmision: fechaEmision,
+        registrarEnPrecios: registrarEnPrecios,
+        cupones: cuponesGenerados
+      };
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btnCrear.disabled = false;
+          btnCrear.textContent = '🚀 Crear Hoja de Bono en Sheets';
+          if (res.success) {
+            status.className = 'status-msg status-success';
+            status.textContent = '✅ ' + res.message;
+            status.style.display = 'block';
+            setTimeout(function() { google.script.host.close(); }, 1800);
+          } else {
+            status.className = 'status-msg status-error';
+            status.textContent = '❌ ' + res.message;
+            status.style.display = 'block';
+          }
+        })
+        .withFailureHandler(function(err) {
+          btnCrear.disabled = false;
+          btnCrear.textContent = '🚀 Crear Hoja de Bono en Sheets';
+          status.className = 'status-msg status-error';
+          status.textContent = '❌ Error inesperado: ' + err.message;
+          status.style.display = 'block';
+        })
+        .crearHojaBonoBackend(config);
+    }
+
+    window.onload = function() {
+      actualizarDiaAuto();
+      generarCronogramaPreview();
+    };
+  </script>
+</body>
+</html>
